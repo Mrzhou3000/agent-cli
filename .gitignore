@@ -7,12 +7,9 @@ build/
 .pytest_cache/
 .ruff_cache/
 
-# 运行时数据
-.agent/sessions/
-.agent/logs/
-.agent/archives/
-.agent/memory/*.md
-.agent/project.md
+# 运行时数据（Claude 等工作目录，不上传）
+.agent/
+.claude/
 
 # 环境变量
 .env
