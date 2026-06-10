@@ -39,7 +39,7 @@ jobs:
           python-version: "${{ env.PYTHON_VERSION }}"
 
       - name: "📦 安装 uv"
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v5
 
       - name: "🔧 安装依赖"
         run: uv sync

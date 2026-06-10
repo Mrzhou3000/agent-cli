@@ -56,35 +56,41 @@ jobs:
       # astral-sh/setup-uv 是 uv 官方提供的 Action
       # ⚠️ 注意：这个项目用 uv 管理依赖，不是 pip
       - name: "📦 安装 uv"
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: "latest"
+        uses: astral-sh/setup-uv@v5
 
-      # Step 4: 安装项目依赖
+      # Step 4: 调试步骤 — 确认当前目录和文件结构
+      # 如果 CI 报错说找不到文件，这个步骤会显示当前目录的内容
+      - name: "📂 查看工作目录"
+        run: |
+          echo "当前目录: $(pwd)"
+          echo "文件列表:"
+          ls -la
+
+      # Step 5: 安装项目依赖
       # uv sync 等效于 pip install -r requirements.txt
       # 它读取 pyproject.toml，安装所有依赖（包括 dev 依赖）
       - name: "🔧 安装依赖"
         run: uv sync
 
-      # Step 5: 运行 ruff 代码检查
+      # Step 6: 运行 ruff 代码检查
       # ruff check 检查代码风格问题（替代 flake8 + isort）
       - name: "🔍 Ruff 代码检查"
         run: uv run ruff check src/ tests/
 
-      # Step 6: 检查 ruff 格式
+      # Step 7: 检查 ruff 格式
       # ruff format --check 只检查格式是否正确，不修改文件
       # 如果格式不正确，这里会报错 ❌
       - name: "🎨 Ruff 格式检查"
         run: uv run ruff format src/ tests/ --check
 
-      # Step 7: 运行 pytest 单元测试
+      # Step 8: 运行 pytest 单元测试
       # --cov=src/ 测量 src/ 目录的测试覆盖率
       # --cov-report=term 在终端输出覆盖率报告
       # -v 详细模式，显示每个测试的名字和结果
       - name: "🧪 运行测试"
         run: uv run pytest tests/ -v --cov=src/ --cov-report=term
 
-      # Step 8: mypy 静态类型检查（非阻塞，仅供参考）
+      # Step 9: mypy 静态类型检查（非阻塞，仅供参考）
       # ⚠️ continue-on-error 表示这个步骤失败不会导致整个 workflow 变红
       # 因为目前项目还有 122 个 mypy 错误，需要逐步修复
       - name: "📝 Mypy 类型检查（当前: 122 errors）"
@@ -104,7 +110,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v5
+
+      - name: "📂 查看工作目录"
+        run: |
+          echo "当前目录: $(pwd)"
+          echo "文件列表:"
+          ls -la
 
       - name: "🔧 安装依赖"
         run: uv sync
