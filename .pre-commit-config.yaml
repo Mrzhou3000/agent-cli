@@ -1,0 +1,42 @@
+# =============================================================================
+# pre-commit 本地钩子配置
+#
+# 功能：在 `git commit` 之前自动运行代码检查
+#       如果检查不通过，commit 会被阻止
+# 价值：在代码到达 GitHub 之前就发现问题，不用等 CI 报错
+#
+# 安装方法：
+#   1. 安装 pre-commit: pip install pre-commit
+#   2. 安装钩子:      pre-commit install
+#   3. 手动运行:      pre-commit run --all-files
+#
+# 前置条件：
+#   Python 3.12+
+#   pre-commit: pip install pre-commit 或 uv pip install pre-commit
+# =============================================================================
+
+repos:
+  # ── 通用检查 ──────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # 检查是否有合并冲突标记（<<<<<<<, =======, >>>>>>>）
+      - id: check-merge-conflict
+      # 检查 YAML 文件语法是否正确
+      - id: check-yaml
+      # 检查 JSON 文件语法是否正确
+      - id: check-json
+      # 检查文件末尾是否有多余的空行
+      - id: trailing-whitespace
+      # 检查文件末尾是否有且仅有一个换行符
+      - id: end-of-file-fixer
+
+  # ── Ruff（代码风格 + 格式化） ─────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.0
+    hooks:
+      # ruff check: 代码质量检查（lint）
+      - id: ruff
+        args: [--fix]   # 能自动修的顺手修掉
+      # ruff format: 代码格式化
+      - id: ruff-format
