@@ -274,8 +274,8 @@ REPL 模式下可用命令：
 ## 📚 详细文档
 
 - [开发规范文档](DEVELOPMENT_SPECIFICATION.md) — 完整的14个模块规范
-- `docs/architecture.md` — 架构详解（待生成）
-- `docs/modules.md` — 各模块详解（待生成）
+- [架构详解](docs/architecture.md) — 五层架构、数据流、核心设计模式、扩展点
+- [模块详解](docs/modules.md) — 14个模块的职责、接口、设计决策
 
 ---
 
