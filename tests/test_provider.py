@@ -1,4 +1,4 @@
-"""Provider 单元测试：AnthropicProvider + CompatibleProvider + 数据模型。
+"""Provider 单元测试：Anthropic / Compatible / DeepSeek / OpenAI Provider + 数据模型。
 
 目标模块: src/agent_cli/core/provider.py
 当前覆盖率: 46% → 目标 90%
@@ -20,9 +20,11 @@ import pytest
 from agent_cli.core.provider import (
     AnthropicProvider,
     CompatibleProvider,
+    DeepSeekProvider,
     IModelProvider,
     Message,
     MockProvider,
+    OpenAIProvider,
     Response,
     ToolCall,
     Usage,
@@ -942,3 +944,79 @@ class TestInvokeWithRetry:
         assert kwargs["json"]["model"] == "deepseek-chat"
         assert kwargs["json"]["stream"] is True
         assert "tools" in kwargs["json"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DeepSeekProvider
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestDeepSeekProvider:
+    """DeepSeekProvider __init__ 和环境变量测试。"""
+
+    def test_default_values(self):
+        """默认 base_url 和模型应为 DeepSeek 预设。"""
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "sk-deepseek-test"}):
+            p = DeepSeekProvider()
+            assert p.base_url == "https://api.deepseek.com/v1"
+            assert p.model == "deepseek-chat"
+
+    def test_custom_model(self):
+        """可指定自定义模型名。"""
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "sk-deepseek-test"}):
+            p = DeepSeekProvider(model="deepseek-reasoner")
+            assert p.model == "deepseek-reasoner"
+
+    def test_explicit_api_key(self):
+        """显式传入的 api_key 优先于环境变量。"""
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "sk-env"}):
+            p = DeepSeekProvider(api_key="sk-explicit")
+            assert p.api_key == "sk-explicit"
+
+    def test_fallback_to_compatible_key(self):
+        """无 DEEPSEEK_API_KEY 时回退到 COMPATIBLE_API_KEY。"""
+        with patch.dict(os.environ, {"COMPATIBLE_API_KEY": "sk-fallback"}, clear=True):
+            p = DeepSeekProvider()
+            assert p.api_key == "sk-fallback"
+
+    def test_inherits_invoke_and_stream(self):
+        """DeepSeekProvider 应继承 CompatibleProvider 的 invoke/stream 方法。"""
+        assert issubclass(DeepSeekProvider, CompatibleProvider)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OpenAIProvider
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestOpenAIProvider:
+    """OpenAIProvider __init__ 和环境变量测试。"""
+
+    def test_default_values(self):
+        """默认 base_url 和模型应为 OpenAI 预设。"""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-openai-test"}):
+            p = OpenAIProvider()
+            assert p.base_url == "https://api.openai.com/v1"
+            assert p.model == "gpt-4o"
+
+    def test_custom_model(self):
+        """可指定自定义模型名。"""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-openai-test"}):
+            p = OpenAIProvider(model="gpt-4o-mini")
+            assert p.model == "gpt-4o-mini"
+
+    def test_explicit_api_key(self):
+        """显式传入的 api_key 优先于环境变量。"""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-env"}):
+            p = OpenAIProvider(api_key="sk-explicit")
+            assert p.api_key == "sk-explicit"
+
+    def test_fallback_to_compatible_key(self):
+        """无 OPENAI_API_KEY 时回退到 COMPATIBLE_API_KEY。"""
+        with patch.dict(os.environ, {"COMPATIBLE_API_KEY": "sk-fallback"}, clear=True):
+            p = OpenAIProvider()
+            assert p.api_key == "sk-fallback"
+
+    def test_inherits_invoke_and_stream(self):
+        """OpenAIProvider 应继承 CompatibleProvider 的 invoke/stream 方法。"""
+        assert issubclass(OpenAIProvider, CompatibleProvider)

@@ -110,13 +110,29 @@ class TestCreateProvider:
             assert provider.model == "claude-sonnet-4-20250514"
 
     def test_auto_compatible_key(self):
-        """auto 模式有 COMPATIBLE_API_KEY 时返回 CompatibleProvider。"""
+        """auto 模式有 COMPATIBLE_API_KEY 时返回 CompatibleProvider（最低优先级）。"""
         with patch.dict(os.environ, {"COMPATIBLE_API_KEY": "sk-test"}):
             provider = _create_provider(provider="auto")
             from agent_cli.core.provider import CompatibleProvider
 
             assert isinstance(provider, CompatibleProvider)
             assert "deepseek" in provider.model
+
+    def test_auto_deepseek_key(self):
+        """auto 模式有 DEEPSEEK_API_KEY 时返回 DeepSeekProvider。"""
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "sk-deep-test"}):
+            provider = _create_provider(provider="auto")
+            from agent_cli.core.provider import DeepSeekProvider
+
+            assert isinstance(provider, DeepSeekProvider)
+
+    def test_auto_openai_key(self):
+        """auto 模式有 OPENAI_API_KEY 时返回 OpenAIProvider。"""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-oa-test"}):
+            provider = _create_provider(provider="auto")
+            from agent_cli.core.provider import OpenAIProvider
+
+            assert isinstance(provider, OpenAIProvider)
 
     def test_mock_provider(self):
         """显式 mock 返回 MockProvider。"""
@@ -139,6 +155,30 @@ class TestCreateProvider:
             provider = _create_provider(provider="anthropic", api_key="sk-ant-direct")
             assert provider is not None
 
+    def test_deepseek_explicit(self):
+        """显式 deepseek 返回 DeepSeekProvider。"""
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "sk-deep-test"}):
+            provider = _create_provider(provider="deepseek")
+            from agent_cli.core.provider import DeepSeekProvider
+
+            assert isinstance(provider, DeepSeekProvider)
+
+    def test_deepseek_without_key_fallback(self):
+        """deepseek 模式无专用 key 时回退到 COMPATIBLE_API_KEY。"""
+        with patch.dict(os.environ, {"COMPATIBLE_API_KEY": "sk-fallback"}, clear=True):
+            provider = _create_provider(provider="deepseek")
+            from agent_cli.core.provider import DeepSeekProvider
+
+            assert isinstance(provider, DeepSeekProvider)
+
+    def test_openai_explicit(self):
+        """显式 openai 返回 OpenAIProvider。"""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-oa-test"}):
+            provider = _create_provider(provider="openai")
+            from agent_cli.core.provider import OpenAIProvider
+
+            assert isinstance(provider, OpenAIProvider)
+
     def test_compatible_explicit(self):
         """显式 compatible 返回 CompatibleProvider。"""
         with patch.dict(os.environ, {"COMPATIBLE_API_KEY": "sk-test"}):
@@ -159,15 +199,49 @@ class TestCreateProvider:
             assert "gpt-4" in provider.model
 
     def test_anthropic_priority_in_auto(self):
-        """auto 模式 ANTHROPIC_API_KEY 优先于 COMPATIBLE_API_KEY。"""
+        """auto 模式 ANTHROPIC_API_KEY 优先于所有其他 key。"""
         with patch.dict(
             os.environ,
-            {"ANTHROPIC_API_KEY": "sk-ant-test", "COMPATIBLE_API_KEY": "sk-comp-test"},
+            {
+                "ANTHROPIC_API_KEY": "sk-ant-test",
+                "DEEPSEEK_API_KEY": "sk-deep-test",
+                "OPENAI_API_KEY": "sk-oa-test",
+                "COMPATIBLE_API_KEY": "sk-comp-test",
+            },
         ):
             provider = _create_provider(provider="auto")
             from agent_cli.core.provider import AnthropicProvider
 
             assert isinstance(provider, AnthropicProvider)
+
+    def test_deepseek_priority_in_auto(self):
+        """auto 模式 DEEPSEEK_API_KEY 优先于 OPENAI_API_KEY 和 COMPATIBLE_API_KEY。"""
+        with patch.dict(
+            os.environ,
+            {
+                "DEEPSEEK_API_KEY": "sk-deep-test",
+                "OPENAI_API_KEY": "sk-oa-test",
+                "COMPATIBLE_API_KEY": "sk-comp-test",
+            },
+        ):
+            provider = _create_provider(provider="auto")
+            from agent_cli.core.provider import DeepSeekProvider
+
+            assert isinstance(provider, DeepSeekProvider)
+
+    def test_openai_priority_in_auto(self):
+        """auto 模式 OPENAI_API_KEY 优先于 COMPATIBLE_API_KEY。"""
+        with patch.dict(
+            os.environ,
+            {
+                "OPENAI_API_KEY": "sk-oa-test",
+                "COMPATIBLE_API_KEY": "sk-comp-test",
+            },
+        ):
+            provider = _create_provider(provider="auto")
+            from agent_cli.core.provider import OpenAIProvider
+
+            assert isinstance(provider, OpenAIProvider)
 
     def test_custom_model_auto(self):
         """auto 模式自定义 model 参数传递。"""

@@ -29,8 +29,10 @@ from agent_cli.core.loop import AgentLoop
 from agent_cli.core.provider import (
     AnthropicProvider,
     CompatibleProvider,
+    DeepSeekProvider,
     IModelProvider,
     MockProvider,
+    OpenAIProvider,
 )
 from agent_cli.hooks.manager import PRE_LOOP
 from agent_cli.mcp.bridge import MCPToolBridge
@@ -145,11 +147,12 @@ def _create_provider(
     """根据参数和自动检测创建合适的 Provider。
 
     策略:
-      auto      → 优先 ANTHROPIC_API_KEY → AnthropicProvider
-                  其次 COMPATIBLE_API_KEY → CompatibleProvider
-                  否则 → MockProvider
+      auto      → 环境变量检测: ANTHROPIC_API_KEY > DEEPSEEK_API_KEY >
+                   OPENAI_API_KEY > COMPATIBLE_API_KEY > MockProvider
       anthropic → AnthropicProvider（需 ANTHROPIC_API_KEY）
-      compatible → CompatibleProvider（需 COMPATIBLE_API_KEY 或 --api-key）
+      deepseek  → DeepSeekProvider（读 DEEPSEEK_API_KEY 或 COMPATIBLE_API_KEY）
+      openai    → OpenAIProvider（读 OPENAI_API_KEY 或 COMPATIBLE_API_KEY）
+      compatible→ CompatibleProvider 通用（需 --base-url 和 --api-key）
       mock      → MockProvider（不需要 API key）
     """
     ptype = provider.lower().strip()
@@ -162,6 +165,20 @@ def _create_provider(
         resolved_model = model or "claude-sonnet-4-20250514"
         return AnthropicProvider(api_key=key, model=resolved_model, max_tokens=max_tokens)
 
+    if ptype == "deepseek":
+        return DeepSeekProvider(
+            api_key=api_key,
+            model=model or "deepseek-chat",
+            max_tokens=max_tokens,
+        )
+
+    if ptype == "openai":
+        return OpenAIProvider(
+            api_key=api_key,
+            model=model or "gpt-4o",
+            max_tokens=max_tokens,
+        )
+
     if ptype == "compatible":
         key = api_key or os.environ.get("COMPATIBLE_API_KEY")
         resolved_model = model or "deepseek-chat"
@@ -173,13 +190,21 @@ def _create_provider(
             max_tokens=max_tokens,
         )
 
-    # auto: 自动检测环境变量
+    # auto: 自动检测环境变量（优先级从高到低）
     anthropic_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    deepseek_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
+    openai_key = api_key or os.environ.get("OPENAI_API_KEY")
     compatible_key = api_key or os.environ.get("COMPATIBLE_API_KEY")
 
     if anthropic_key:
         resolved_model = model or "claude-sonnet-4-20250514"
         return AnthropicProvider(api_key=anthropic_key, model=resolved_model, max_tokens=max_tokens)
+    if deepseek_key:
+        return DeepSeekProvider(
+            api_key=deepseek_key, model=model or "deepseek-chat", max_tokens=max_tokens
+        )
+    if openai_key:
+        return OpenAIProvider(api_key=openai_key, model=model or "gpt-4o", max_tokens=max_tokens)
     if compatible_key:
         resolved_model = model or "deepseek-chat"
         resolved_base = base_url or "https://api.deepseek.com/v1"
@@ -226,7 +251,9 @@ def run(
     model: str = Option("", "--model", "-m", help="模型名（auto→claude, comp→deepseek）"),
     verbose: bool = Option(False, "--verbose", "-v", help="详细输出模式"),
     json_output: bool = Option(False, "--json", "-j", help="JSON 输出模式"),
-    provider_opt: str = Option("auto", "--provider", "-p", help="auto/anthropic/compatible/mock"),
+    provider_opt: str = Option(
+        "auto", "--provider", "-p", help="auto/anthropic/deepseek/openai/compatible/mock"
+    ),
     api_key: str | None = Option(None, "--api-key", "-k", help="API 密钥，覆盖环境变量"),
     base_url: str | None = Option(
         None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"
@@ -351,7 +378,9 @@ def run(
 def repl(
     verbose: bool = Option(False, "--verbose", "-v", help="详细输出模式"),
     model: str = Option("", "--model", "-m", help="模型名（auto→claude, comp→deepseek）"),
-    provider_opt: str = Option("auto", "--provider", "-p", help="auto/anthropic/compatible/mock"),
+    provider_opt: str = Option(
+        "auto", "--provider", "-p", help="auto/anthropic/deepseek/openai/compatible/mock"
+    ),
     api_key: str | None = Option(None, "--api-key", "-k", help="API 密钥，覆盖环境变量"),
     base_url: str | None = Option(
         None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"
@@ -942,7 +971,9 @@ def swarm(
     verbose: bool = Option(False, "--verbose", "-V", help="显示详细结果"),
     max_iterations: int = Option(5, "--max-iter", help="每个 Worker 最大迭代次数"),
     model: str = Option("", "--model", "-m", help="模型名（auto→claude, comp→deepseek）"),
-    provider_opt: str = Option("auto", "--provider", "-p", help="auto/anthropic/compatible/mock"),
+    provider_opt: str = Option(
+        "auto", "--provider", "-p", help="auto/anthropic/deepseek/openai/compatible/mock"
+    ),
     api_key: str | None = Option(None, "--api-key", "-k", help="API 密钥，覆盖环境变量"),
     base_url: str | None = Option(
         None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"

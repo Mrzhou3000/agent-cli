@@ -5,11 +5,13 @@
   MockProvider 用于测试，AnthropicProvider 用于生产，
   CompatibleProvider 用于兼容其他 API。
 
-三层架构:
+架构:
   IModelProvider  ←  抽象接口
-    ├─ MockProvider      ← 测试用，预设响应
-    ├─ AnthropicProvider ← Anthropic Claude API
-    └─ CompatibleProvider ← 兼容 API（如 DeepSeek）
+    ├─ MockProvider        ← 测试用，预设响应
+    ├─ AnthropicProvider   ← Anthropic Claude API
+    └─ CompatibleProvider  ← 兼容 API 基类（OpenAI 格式）
+          ├─ DeepSeekProvider  ← DeepSeek（默认 deepseek-chat）
+          └─ OpenAIProvider    ← OpenAI（默认 gpt-4o）
 """
 
 from __future__ import annotations
@@ -569,3 +571,71 @@ class CompatibleProvider(IModelProvider):
 
         except (httpx.RequestError, OSError) as e:
             yield f"\n[流式调用失败: {e}]"
+
+
+# ─── DeepSeekProvider ─────────────────────────────────────────────
+
+
+class DeepSeekProvider(CompatibleProvider):
+    """DeepSeek API 实现。
+
+    继承 CompatibleProvider，预设 DeepSeek 的 base_url 和模型名。
+    优先读取 DEEPSEEK_API_KEY，回退到 COMPATIBLE_API_KEY。
+
+    用法:
+        provider = DeepSeekProvider(api_key="sk-xxx")
+        provider = DeepSeekProvider()  # 读取环境变量
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "deepseek-chat",
+        max_tokens: int = 4096,
+    ):
+        key = api_key
+        if not key:
+            import os
+
+            key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("COMPATIBLE_API_KEY")
+
+        super().__init__(
+            base_url="https://api.deepseek.com/v1",
+            api_key=key,
+            model=model,
+            max_tokens=max_tokens,
+        )
+
+
+# ─── OpenAIProvider ───────────────────────────────────────────────
+
+
+class OpenAIProvider(CompatibleProvider):
+    """OpenAI API 实现。
+
+    继承 CompatibleProvider，预设 OpenAI 的 base_url 和模型名。
+    优先读取 OPENAI_API_KEY，回退到 COMPATIBLE_API_KEY。
+
+    用法:
+        provider = OpenAIProvider(api_key="sk-xxx")
+        provider = OpenAIProvider()  # 读取环境变量
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "gpt-4o",
+        max_tokens: int = 4096,
+    ):
+        key = api_key
+        if not key:
+            import os
+
+            key = os.environ.get("OPENAI_API_KEY") or os.environ.get("COMPATIBLE_API_KEY")
+
+        super().__init__(
+            base_url="https://api.openai.com/v1",
+            api_key=key,
+            model=model,
+            max_tokens=max_tokens,
+        )

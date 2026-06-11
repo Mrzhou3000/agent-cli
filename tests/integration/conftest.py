@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 import vcr
 
-from agent_cli.core.provider import CompatibleProvider
+from agent_cli.core.provider import DeepSeekProvider
 
 # ─── VCR 配置 ──────────────────────────────────────────────────────
 
@@ -29,7 +29,7 @@ vcr_config = vcr.VCR(
 
 
 def _get_deepseek_key() -> str | None:
-    return os.environ.get("COMPATIBLE_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
+    return os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("COMPATIBLE_API_KEY")
 
 
 @pytest.fixture
@@ -42,18 +42,17 @@ def deepseek_key() -> str | None:
     key = _get_deepseek_key()
     has_cassettes = any(CASSETTE_DIR.glob("*.yaml"))
     if not key and not has_cassettes:
-        pytest.skip("无 API key 且无 cassette，跳过集成测试。设置 COMPATIBLE_API_KEY 后重试。")
+        pytest.skip("无 API key 且无 cassette，跳过集成测试。设置 DEEPSEEK_API_KEY 后重试。")
     return key  # None 是允许的 — VCR 回放时不需要真实 key
 
 
 @pytest.fixture
-def deepseek_provider(deepseek_key: str | None) -> CompatibleProvider:
-    """已配置的 DeepSeek CompatibleProvider fixture。
+def deepseek_provider(deepseek_key: str | None) -> DeepSeekProvider:
+    """已配置的 DeepSeekProvider fixture。
 
     key 为 None 时仍然创建 provider（VCR 回放模式下不会实际发起 HTTP 请求）。
     """
-    return CompatibleProvider(
-        base_url="https://api.deepseek.com/v1",
+    return DeepSeekProvider(
         api_key=deepseek_key or "",
         model="deepseek-chat",
         max_tokens=1024,
