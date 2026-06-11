@@ -20,6 +20,10 @@ from agent_cli.tools.registry import ToolRegistry
 logger = logging.getLogger(__name__)
 
 
+class REPLExit(BaseException):
+    """REPL 退出信号，用于测试中捕获而非直接 sys.exit。"""
+
+
 class REPLMode:
     """REPL 交互模式。
 
@@ -109,7 +113,10 @@ class REPLMode:
 
             # 处理内置命令
             if user_input.startswith("/"):
-                self._handle_command(user_input)
+                try:
+                    self._handle_command(user_input)
+                except REPLExit:
+                    break
                 continue
 
             # 运行 Agent
@@ -121,7 +128,7 @@ class REPLMode:
 
         if cmd in ("/exit", "/quit"):
             print("再见！")
-            sys.exit(0)
+            raise REPLExit()
 
         elif cmd in ("/help", "/?"):
             self._show_help()

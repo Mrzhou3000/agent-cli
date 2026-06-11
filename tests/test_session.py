@@ -90,3 +90,19 @@ class TestSessionStore:
         assert sid.startswith("sess_")
         parts = sid.split("_")
         assert len(parts) >= 4
+
+    def test_archive(self, store: SessionStore):
+        """测试归档会话。"""
+        sid = store.create()
+        store.append(sid, [{"role": "user", "content": "test"}])
+        assert store.archive(sid) is True
+        # 归档后不能再从活跃列表加载
+        assert store.load(sid) == []
+
+    def test_find_by_keyword_max_results(self, store: SessionStore):
+        """测试搜索关键词的 max_results 限制。"""
+        for i in range(3):
+            sid = store.create()
+            store.append(sid, [{"role": "user", "content": f"Python topic {i}"}])
+        results = store.find_by_keyword("Python", max_results=2)
+        assert len(results) <= 2

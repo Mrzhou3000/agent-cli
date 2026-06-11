@@ -20,7 +20,12 @@ from typer import Argument, Option
 from agent_cli import __version__
 from agent_cli.compact.pipeline import CompactPipeline
 from agent_cli.core.loop import AgentLoop
-from agent_cli.core.provider import AnthropicProvider, MockProvider
+from agent_cli.core.provider import (
+    AnthropicProvider,
+    CompatibleProvider,
+    IModelProvider,
+    MockProvider,
+)
 from agent_cli.hooks.manager import PRE_LOOP, HookManager
 from agent_cli.mcp.bridge import MCPToolBridge
 from agent_cli.memory.manager import MemoryManager
@@ -90,6 +95,69 @@ def _create_registry(allowed_dir: str | None = None) -> ToolRegistry:
     return registry
 
 
+def _create_provider(
+    provider: str = "auto",
+    model: str = "",
+    api_key: str | None = None,
+    base_url: str | None = None,
+    max_tokens: int = 4096,
+) -> IModelProvider:
+    """根据参数和自动检测创建合适的 Provider。
+
+    策略:
+      auto      → 优先 ANTHROPIC_API_KEY → AnthropicProvider
+                  其次 COMPATIBLE_API_KEY → CompatibleProvider
+                  否则 → MockProvider
+      anthropic → AnthropicProvider（需 ANTHROPIC_API_KEY）
+      compatible → CompatibleProvider（需 COMPATIBLE_API_KEY 或 --api-key）
+      mock      → MockProvider（不需要 API key）
+    """
+    ptype = provider.lower().strip()
+
+    if ptype == "mock":
+        return MockProvider()
+
+    if ptype == "anthropic":
+        key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        resolved_model = model or "claude-sonnet-4-20250514"
+        return AnthropicProvider(api_key=key, model=resolved_model, max_tokens=max_tokens)
+
+    if ptype == "compatible":
+        key = api_key or os.environ.get("COMPATIBLE_API_KEY")
+        resolved_model = model or "deepseek-chat"
+        resolved_base = base_url or "https://api.deepseek.com/v1"
+        return CompatibleProvider(
+            base_url=resolved_base,
+            api_key=key,
+            model=resolved_model,
+            max_tokens=max_tokens,
+        )
+
+    # auto: 自动检测环境变量
+    anthropic_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    compatible_key = api_key or os.environ.get("COMPATIBLE_API_KEY")
+
+    if anthropic_key:
+        resolved_model = model or "claude-sonnet-4-20250514"
+        return AnthropicProvider(api_key=anthropic_key, model=resolved_model, max_tokens=max_tokens)
+    if compatible_key:
+        resolved_model = model or "deepseek-chat"
+        resolved_base = base_url or "https://api.deepseek.com/v1"
+        return CompatibleProvider(
+            base_url=resolved_base,
+            api_key=compatible_key,
+            model=resolved_model,
+            max_tokens=max_tokens,
+        )
+
+    import logging
+
+    logging.getLogger(__name__).info(
+        "未检测到任何 API key，使用 MockProvider（仅测试用）"
+    )
+    return MockProvider()
+
+
 # ─── Typer 应用 ────────────────────────────────────────────────────
 
 app = typer.Typer(
@@ -117,9 +185,12 @@ def main_callback(
 @app.command()
 def run(
     prompt: str = Argument(..., help="用户指令"),
-    model: str = Option("claude-sonnet-4-20250514", "--model", "-m", help="模型名称"),
+    model: str = Option("", "--model", "-m", help="模型名（auto→claude, comp→deepseek）"),
     verbose: bool = Option(False, "--verbose", "-v", help="详细输出模式"),
     json_output: bool = Option(False, "--json", "-j", help="JSON 输出模式"),
+    provider_opt: str = Option("auto", "--provider", "-p", help="auto/anthropic/compatible/mock"),
+    api_key: str | None = Option(None, "--api-key", "-k", help="API 密钥，覆盖环境变量"),
+    base_url: str | None = Option(None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"),
     resume: str | None = Option(None, "--resume", help="恢复会话 ID"),
     max_iterations: int = Option(20, "--max-iter", help="最大循环迭代次数"),
     allowed_dir: str | None = Option(None, "--dir", "-d", help="允许的工作目录"),
@@ -148,9 +219,13 @@ def run(
     mem_mgr = MemoryManager(base_dir=".agent") if memory else None
     compact_pipe = CompactPipeline(max_tokens=max_tokens) if compact else None
 
-    # 创建 Provider（优先使用 Anthropic，降级 Mock）
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    provider = AnthropicProvider(api_key=api_key, model=model) if api_key else MockProvider()
+    # 创建 Provider（支持多模型切换）
+    provider = _create_provider(
+        provider=provider_opt,
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
+    )
 
     # 会话管理
     session_id = session_store.create()
@@ -218,7 +293,10 @@ def run(
 @app.command()
 def repl(
     verbose: bool = Option(False, "--verbose", "-v", help="详细输出模式"),
-    model: str = Option("claude-sonnet-4-20250514", "--model", "-m", help="模型名称"),
+    model: str = Option("", "--model", "-m", help="模型名（auto→claude, comp→deepseek）"),
+    provider_opt: str = Option("auto", "--provider", "-p", help="auto/anthropic/compatible/mock"),
+    api_key: str | None = Option(None, "--api-key", "-k", help="API 密钥，覆盖环境变量"),
+    base_url: str | None = Option(None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"),
     allowed_dir: str | None = Option(None, "--dir", "-d", help="允许的工作目录"),
     memory: bool = Option(True, "--memory/--no-memory", help="启用/禁用三级记忆"),
     compact: bool = Option(True, "--compact/--no-compact", help="启用/禁用上下文压缩"),
@@ -241,8 +319,12 @@ def repl(
     metrics = MetricsCollector()
     alerts = AlertManager(metrics)
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    provider = AnthropicProvider(api_key=api_key, model=model) if api_key else MockProvider()
+    provider = _create_provider(
+        provider=provider_opt,
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
+    )
 
     # 启动 REPL
     repl_session = REPLMode(
@@ -791,6 +873,10 @@ def swarm(
     rounds: int = Option(2, "--rounds", "-r", help="辩论轮数（默认 2）"),
     verbose: bool = Option(False, "--verbose", "-V", help="显示详细结果"),
     max_iterations: int = Option(5, "--max-iter", help="每个 Worker 最大迭代次数"),
+    model: str = Option("", "--model", "-m", help="模型名（auto→claude, comp→deepseek）"),
+    provider_opt: str = Option("auto", "--provider", "-p", help="auto/anthropic/compatible/mock"),
+    api_key: str | None = Option(None, "--api-key", "-k", help="API 密钥，覆盖环境变量"),
+    base_url: str | None = Option(None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"),
 ):
     """多 Agent 协作模式。
 
@@ -802,8 +888,12 @@ def swarm(
     """
     # 创建最小运行时
     registry = _create_registry()
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    provider = AnthropicProvider(api_key=api_key) if api_key else MockProvider()
+    provider = _create_provider(
+        provider=provider_opt,
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
+    )
 
     loop = AgentLoop(
         provider=provider,
