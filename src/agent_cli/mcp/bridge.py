@@ -361,6 +361,7 @@ class _MCPToolWrapper(BaseTool):
                 "type": "object",
                 "properties": {},
             },
+            handler=self.execute,
             safety=SafetyLevel.ALWAYS_ASK,
             extra={"server": self._def.server_name},
         )
