@@ -217,7 +217,6 @@ def run(
     registry = _create_registry(allowed_dir=work_dir)
     session_store = SessionStore(base_dir=".agent")
     mem_mgr = MemoryManager(base_dir=".agent") if memory else None
-    compact_pipe = CompactPipeline(max_tokens=max_tokens) if compact else None
 
     # 创建 Provider（支持多模型切换）
     provider = _create_provider(
@@ -226,6 +225,8 @@ def run(
         api_key=api_key,
         base_url=base_url,
     )
+
+    compact_pipe = CompactPipeline(max_tokens=max_tokens, provider=provider) if compact else None
 
     # 会话管理
     session_id = session_store.create()
@@ -317,7 +318,6 @@ def repl(
     registry = _create_registry(allowed_dir=work_dir)
     session_store = SessionStore(base_dir=".agent")
     mem_mgr = MemoryManager(base_dir=".agent") if memory else None
-    compact_pipe = CompactPipeline(max_tokens=max_tokens) if compact else None
     metrics = MetricsCollector()
     alerts = AlertManager(metrics)
 
@@ -327,6 +327,8 @@ def repl(
         api_key=api_key,
         base_url=base_url,
     )
+
+    compact_pipe = CompactPipeline(max_tokens=max_tokens, provider=provider) if compact else None
 
     # 启动 REPL
     repl_session = REPLMode(
@@ -590,10 +592,10 @@ def plan(
         return
 
     if next_task:
-        tasks = planner.get_next_tasks(plan_id)
-        if tasks:
+        next_tasks = planner.get_next_tasks(plan_id)
+        if next_tasks:
             print("可执行任务:")
-            for t in tasks:
+            for t in next_tasks:
                 print(f"  [file] {t.id}: {t.title}")
         else:
             print("当前无可执行任务（等待审批或依赖未完成）。")

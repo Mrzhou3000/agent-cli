@@ -48,7 +48,9 @@ class AgentTool(BaseTool):
             safety=SafetyLevel.SENSITIVE,
         )
 
-    def execute(self, task: str, context: str | None = None, **kwargs: Any) -> dict:
+    def execute(  # type: ignore[override]
+        self, task: str, context: str | None = None, **kwargs: Any
+    ) -> dict:
         if self._manager is None:
             return {
                 "result": "[占位] 子 Agent 系统将在 Phase 3 实现。",

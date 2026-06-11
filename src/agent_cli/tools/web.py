@@ -39,7 +39,9 @@ class WebFetchTool(BaseTool):
             safety=SafetyLevel.ALWAYS_ASK,
         )
 
-    def execute(self, url: str, prompt: str | None = None, **kwargs: Any) -> dict:
+    def execute(  # type: ignore[override]
+        self, url: str, prompt: str | None = None, **kwargs: Any
+    ) -> dict:
         if not url.startswith(("http://", "https://")):
             return {"error": "URL 必须以 http:// 或 https:// 开头", "content": ""}
 

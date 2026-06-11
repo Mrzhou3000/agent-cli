@@ -62,7 +62,9 @@ class BashTool(BaseTool):
             safety=SafetyLevel.SENSITIVE,
         )
 
-    def execute(self, command: str, timeout: int = 30, **kwargs: Any) -> dict[str, Any]:
+    def execute(  # type: ignore[override]
+        self, command: str, timeout: int = 30, **kwargs: Any
+    ) -> dict[str, Any]:
         """执行 bash 命令。
 
         Args:

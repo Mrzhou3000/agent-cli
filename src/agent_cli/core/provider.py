@@ -246,7 +246,7 @@ class AnthropicProvider(IModelProvider):
         self.max_tokens = max_tokens
         self._client: Any = None  # Lazy init
 
-    def _get_client(self):
+    def _get_client(self) -> Any:
         """延迟初始化 Anthropic 客户端。"""
         if self._client is not None:
             return self._client
@@ -305,7 +305,7 @@ class CompatibleProvider(IModelProvider):
         self.max_tokens = max_tokens
         self._client: Any = None
 
-    def _get_client(self):
+    def _get_client(self) -> Any:
         """延迟初始化 httpx 客户端。"""
         if self._client is not None:
             return self._client

@@ -66,7 +66,7 @@ class ReadTool(_BaseFileTool):
             safety=SafetyLevel.SAFE,
         )
 
-    def execute(
+    def execute(  # type: ignore[override]
         self, path: str, offset: int | None = None, limit: int | None = None, **kwargs: Any
     ) -> dict:
         full_path = self._resolve_path(path)
@@ -126,7 +126,9 @@ class WriteTool(_BaseFileTool):
             safety=SafetyLevel.SENSITIVE,
         )
 
-    def execute(self, path: str, content: str, **kwargs: Any) -> dict:
+    def execute(  # type: ignore[override]
+        self, path: str, content: str, **kwargs: Any
+    ) -> dict:
         full_path = self._resolve_path(path)
         full_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -178,7 +180,7 @@ class EditTool(_BaseFileTool):
             safety=SafetyLevel.SENSITIVE,
         )
 
-    def execute(
+    def execute(  # type: ignore[override]
         self,
         path: str,
         old_string: str,
@@ -240,7 +242,9 @@ class GlobTool(_BaseFileTool):
             safety=SafetyLevel.SAFE,
         )
 
-    def execute(self, pattern: str, path: str | None = None, **kwargs: Any) -> dict:
+    def execute(  # type: ignore[override]
+        self, pattern: str, path: str | None = None, **kwargs: Any
+    ) -> dict:
         search_dir = self._resolve_path(path) if path else self.allowed_dir
 
         try:
@@ -284,7 +288,7 @@ class GrepTool(_BaseFileTool):
             safety=SafetyLevel.SAFE,
         )
 
-    def execute(
+    def execute(  # type: ignore[override]
         self, pattern: str, path: str | None = None, glob: str | None = None, **kwargs: Any
     ) -> dict:
         search_dir = self._resolve_path(path) if path else self.allowed_dir

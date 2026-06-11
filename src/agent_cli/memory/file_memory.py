@@ -147,16 +147,17 @@ def _simple_yaml_parse(text: str) -> dict[str, Any]:
 
             # 普通值
             value: str | int | float | bool = value_part
-            if value.lower() == "true":
-                value = True
-            elif value.lower() == "false":
-                value = False
-            elif value.isdigit():
-                value = int(value)
-            elif _is_float(value):
-                value = float(value)
-            else:
-                value = value.strip("'\"")
+            if isinstance(value, str):
+                if value.lower() == "true":
+                    value = True
+                elif value.lower() == "false":
+                    value = False
+                elif value.isdigit():
+                    value = int(value)
+                elif _is_float(value):
+                    value = float(value)
+                else:
+                    value = value.strip("'\"")
 
             _set_nested(result, key, value)
             current_key = key

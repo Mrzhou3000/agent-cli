@@ -40,3 +40,12 @@ repos:
         args: [--fix]   # 能自动修的顺手修掉
       # ruff format: 代码格式化
       - id: ruff-format
+
+  # ── mypy: 类型检查 ───────────────────────────────────────────
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        args: [--no-strict-optional, --ignore-missing-imports, --python-version=3.12, src/agent_cli/]
+        additional_dependencies: ['types-requests']
+        pass_filenames: false  # 使用固定路径而非单个文件
