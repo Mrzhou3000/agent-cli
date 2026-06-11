@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from agent_cli.core.provider import (
@@ -807,6 +808,66 @@ class TestInvokeStream:
         p = ToolOnlyProvider()
         chunks = list(p.invoke_stream(messages=[{"role": "user", "content": "do tool"}]))
         assert chunks == []
+
+
+# ─── invoke_with_retry 测试 ──────────────────────────────────────
+
+
+class TestInvokeWithRetry:
+    """指数退避重试逻辑测试。"""
+
+    def test_success_first_try(self):
+        """首次调用成功应直接返回。"""
+        from agent_cli.core.provider import invoke_with_retry
+
+        fn = MagicMock(return_value="ok")
+        result = invoke_with_retry(fn, max_retries=3)
+        assert result == "ok"
+        assert fn.call_count == 1
+
+    def test_retry_then_success(self):
+        """失败后重试成功。"""
+        from agent_cli.core.provider import invoke_with_retry
+
+        fn = MagicMock(side_effect=[httpx.TimeoutException("timeout"), "ok"])
+        result = invoke_with_retry(fn, max_retries=3, base_delay=0.01, max_delay=0.1)
+        assert result == "ok"
+        assert fn.call_count == 2
+
+    def test_retry_exhausted_raises(self):
+        """重试耗尽后抛出最后一次异常。"""
+        from agent_cli.core.provider import invoke_with_retry
+
+        fn = MagicMock(side_effect=httpx.TimeoutException("always timeout"))
+        with pytest.raises(httpx.TimeoutException):
+            invoke_with_retry(fn, max_retries=2, base_delay=0.01, max_delay=0.1)
+        assert fn.call_count == 3  # 初始 + 2 次重试
+
+    def test_non_retryable_http_raises_immediately(self):
+        """401/403/404 等不可重试错误立即抛出。"""
+        from agent_cli.core.provider import invoke_with_retry
+
+        resp = MagicMock(status_code=401)
+        fn = MagicMock(side_effect=httpx.HTTPStatusError("401", request=MagicMock(), response=resp))
+        with pytest.raises(httpx.HTTPStatusError):
+            invoke_with_retry(fn, max_retries=3, base_delay=0.01, max_delay=0.1)
+        assert fn.call_count == 1  # 立即失败，不重试
+
+    def test_retryable_http_is_retried(self):
+        """429 限流错误应重试。"""
+        from agent_cli.core.provider import invoke_with_retry
+
+        rate_resp = MagicMock(status_code=429)
+        fn = MagicMock(
+            side_effect=[
+                httpx.HTTPStatusError("429", request=MagicMock(), response=rate_resp),
+                httpx.HTTPStatusError("429", request=MagicMock(), response=rate_resp),
+                "ok",
+            ]
+        )
+        result = invoke_with_retry(fn, max_retries=3, base_delay=0.01, max_delay=0.1)
+        assert result == "ok"
+        assert fn.call_count == 3
 
     @patch("httpx.Client")
     def test_compatible_provider_stream_yields_chunks(self, mock_httpx_cls):

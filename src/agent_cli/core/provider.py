@@ -15,11 +15,18 @@
 from __future__ import annotations
 
 import json
+import logging
+import random
+import time
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Literal
+
+import httpx
+
+logger = logging.getLogger(__name__)
 
 # ─── 数据模型 ───────────────────────────────────────────────────
 
@@ -58,6 +65,90 @@ class Response:
     text: str = ""
     tool_calls: list[ToolCall] = field(default_factory=list)
     usage: Usage = field(default_factory=Usage)
+
+
+# ─── 重试与退避 ───────────────────────────────────────────────────
+
+# 默认重试参数
+RETRY_MAX_RETRIES = 3
+RETRY_BASE_DELAY = 1.0  # 秒
+RETRY_MAX_DELAY = 30.0  # 秒
+
+# 不可重试的 HTTP 状态码
+_NON_RETRYABLE_STATUSES = {400, 401, 403, 404, 405, 422}
+
+
+def _is_retryable_http(status: int) -> bool:
+    """判断 HTTP 状态码是否可重试。"""
+    return status not in _NON_RETRYABLE_STATUSES
+
+
+def invoke_with_retry(
+    fn: Any,
+    max_retries: int = RETRY_MAX_RETRIES,
+    base_delay: float = RETRY_BASE_DELAY,
+    max_delay: float = RETRY_MAX_DELAY,
+) -> Any:
+    """带指数退避和随机抖动的 API 调用重试包装器。
+
+    对可重试错误（网络问题、5xx、429）进行指数退避重试，
+    对不可重试错误（401、403、404 等）立即抛出。
+
+    Args:
+        fn: 无参可调用对象，执行实际 API 请求。
+        max_retries: 最大重试次数（默认 3）。
+        base_delay: 初始延迟秒数（默认 1.0）。
+        max_delay: 最大延迟秒数（默认 30.0）。
+
+    Returns:
+        fn() 的返回值。
+
+    Raises:
+        最后一次异常（重试耗尽或不可重试错误）。
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return fn()
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            if not _is_retryable_http(status) or attempt == max_retries:
+                logger.warning(
+                    "HTTP %d 不可重试或重试耗尽 (attempt %d/%d)",
+                    status,
+                    attempt + 1,
+                    max_retries + 1,
+                )
+                raise
+            delay = min(base_delay * (2**attempt) + random.uniform(0, 0.5), max_delay)
+            logger.info(
+                "HTTP %d 重试 (attempt %d/%d, delay %.1fs)",
+                status,
+                attempt + 1,
+                max_retries + 1,
+                delay,
+            )
+            time.sleep(delay)
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError) as e:
+            if attempt == max_retries:
+                logger.warning(
+                    "网络错误重试耗尽 (attempt %d/%d): %s",
+                    attempt + 1,
+                    max_retries + 1,
+                    e,
+                )
+                raise
+            delay = min(base_delay * (2**attempt) + random.uniform(0, 0.5), max_delay)
+            logger.info(
+                "网络错误重试 (attempt %d/%d, delay %.1fs): %s",
+                attempt + 1,
+                max_retries + 1,
+                delay,
+                e,
+            )
+            time.sleep(delay)
+
+    # 不应到达此处 — 上面的循环覆盖了所有路径
+    raise RuntimeError("重试循环异常终止")
 
 
 # ─── 抽象接口 ───────────────────────────────────────────────────
@@ -291,7 +382,7 @@ class AnthropicProvider(IModelProvider):
         return self._client
 
     def invoke(self, messages: list[dict], tools: list[dict] | None = None) -> Response:
-        """调用 Anthropic Claude API。"""
+        """调用 Anthropic Claude API（带指数退避重试）。"""
         client = self._get_client()
 
         kwargs: dict[str, Any] = {
@@ -302,7 +393,11 @@ class AnthropicProvider(IModelProvider):
         if tools:
             kwargs["tools"] = tools
 
-        raw = client.messages.create(**kwargs)
+        def _do_request() -> Any:
+            """执行实际 API 调用（可被重试）。"""
+            return client.messages.create(**kwargs)
+
+        raw = invoke_with_retry(_do_request)
 
         return _parse_response(raw.model_dump(mode="json"))
 
@@ -370,7 +465,7 @@ class CompatibleProvider(IModelProvider):
         return self._client
 
     def invoke(self, messages: list[dict], tools: list[dict] | None = None) -> Response:
-        """调用兼容 API。"""
+        """调用兼容 API（带指数退避重试）。"""
         client = self._get_client()
 
         body: dict[str, Any] = {
@@ -383,9 +478,14 @@ class CompatibleProvider(IModelProvider):
         if tools:
             body["tools"] = tools
 
+        def _do_request() -> httpx.Response:
+            """执行实际 HTTP 请求（可被重试）。"""
+            r = client.post("/chat/completions", json=body)
+            r.raise_for_status()
+            return r
+
         try:
-            resp = client.post("/chat/completions", json=body)
-            resp.raise_for_status()
+            resp = invoke_with_retry(_do_request)
             data = resp.json()
             choice = data["choices"][0]
             msg = choice["message"]

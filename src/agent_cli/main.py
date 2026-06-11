@@ -1,5 +1,8 @@
 """CLI 入口 — Agent-CLI 命令行工具。
 
+支持从 .agent/config.json 加载默认配置（CLI 参数优先）。
+
+
 设计依据（模块 4.10）：
   - CLI 框架: Typer（来源：14days-build）
   - 交互模式: 命令行 + REPL（Phase 2 实现）
@@ -8,6 +11,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sys
@@ -20,6 +24,7 @@ from typer import Argument, Option
 
 from agent_cli import __version__
 from agent_cli.compact.pipeline import CompactPipeline
+from agent_cli.config import load_config, save_default_config
 from agent_cli.core.loop import AgentLoop
 from agent_cli.core.provider import (
     AnthropicProvider,
@@ -57,25 +62,59 @@ _LOG_LEVELS = {
 }
 
 
-def _setup_logging(verbose: bool = False, log_dir: str = ".agent/logs") -> None:
+class _JsonFormatter(logging.Formatter):
+    """JSON 结构化日志格式化器。
+
+    输出机器可解析的 JSON 日志行，便于日志收集系统（如 ELK、Datadog）使用。
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        log_entry = {
+            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname,
+            "name": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info and record.exc_info[0]:
+            log_entry["exception"] = self.formatException(record.exc_info)
+        if hasattr(record, "extra_data"):
+            log_entry["extra"] = record.extra_data
+        return json.dumps(log_entry, ensure_ascii=False)
+
+
+def _setup_logging(
+    verbose: bool = False,
+    log_dir: str = ".agent/logs",
+    log_format: str = "text",
+) -> None:
     """配置日志。
 
     Args:
         verbose: 是否启用详细日志（DEBUG 级别）。
         log_dir: 日志文件目录。
+        log_format: 日志格式 — "text"（默认）或 "json"（结构化）。
     """
     level = logging.DEBUG if verbose else logging.WARNING
-    fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+    formatter: logging.Formatter
+    if log_format == "json":
+        formatter = _JsonFormatter()
+    else:
+        formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
     # 控制台日志
-    logging.basicConfig(level=level, format=fmt, stream=sys.stderr)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setLevel(level)
+    handler.setFormatter(formatter)
+    logging.root.addHandler(handler)
+    logging.root.setLevel(level)
 
     # 文件日志
     log_path = Path(log_dir)
     log_path.mkdir(parents=True, exist_ok=True)
     fh = logging.FileHandler(log_path / "agent-cli.log", encoding="utf-8")
     fh.setLevel(logging.DEBUG)
-    fh.setFormatter(logging.Formatter(fmt))
+    fh.setFormatter(formatter)
     logging.getLogger("agent_cli").addHandler(fh)
 
 
@@ -192,6 +231,9 @@ def run(
     base_url: str | None = Option(
         None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"
     ),
+    config: str | None = Option(
+        None, "--config", "-c", help="配置文件路径（默认 .agent/config.json）"
+    ),
     resume: str | None = Option(None, "--resume", help="恢复会话 ID"),
     max_iterations: int = Option(20, "--max-iter", help="最大循环迭代次数"),
     allowed_dir: str | None = Option(None, "--dir", "-d", help="允许的工作目录"),
@@ -204,7 +246,12 @@ def run(
     接收用户指令，运行 Agent 循环，返回处理结果。
     支持工具调用、文件操作、命令执行等功能。
     """
-    _setup_logging(verbose=verbose)
+    # 从配置文件加载默认值（CLI 参数优先）
+    cfg = load_config(path=config)
+    if cfg.get("logging", {}).get("format") == "json" and not verbose:
+        _setup_logging(verbose=verbose, log_format="json")
+    else:
+        _setup_logging(verbose=verbose)
 
     # 输出模式
     output_mode = "json" if json_output else ("verbose" if verbose else "normal")
@@ -370,6 +417,13 @@ def init(
         "mcp.json": '{\n  "mcp_servers": []\n}',
         "project.md": "# 项目记忆\n\n> 自动由 Agent 维护的项目知识文档。\n",
     }
+
+    # 创建默认配置文件
+    try:
+        cfg_path = save_default_config()
+        print(f"  [ok] 创建: {cfg_path}")
+    except Exception:
+        pass  # 非关键，静默失败
 
     for d in dirs:
         (base / d).mkdir(parents=True, exist_ok=True)
