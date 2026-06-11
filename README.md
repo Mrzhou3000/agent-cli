@@ -3,7 +3,7 @@
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue)]()
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000)]()
 [![License MIT](https://img.shields.io/badge/license-MIT-green)]()
-[![Tests](https://img.shields.io/badge/tests-173%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-392%20passing-brightgreen)]()
 
 > 集三大开源项目设计思想之大成的轻量级个人助手 Agent。  
 > 融合 [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code)、[14days-build-claude-code-cli](https://github.com/bozhouDev/14days-build-claude-code-cli)、[claude-code-complete-guide_v2](https://github.com/bcefghj/claude-code-complete-guide_v2) 的设计精华。
@@ -67,6 +67,32 @@ uv run agent-cli run --json "查看系统状态"
 
 # 初始化项目配置
 uv run agent-cli init
+```
+
+### 模型切换（v0.2.0）
+
+支持 Anthropic Claude 和 OpenAI 兼容 API（如 DeepSeek）之间的自由切换：
+
+```bash
+# 使用 Claude（设置 ANTHROPIC_API_KEY 环境变量，或者 auto 自动检测）
+export ANTHROPIC_API_KEY=sk-ant-xxx
+uv run agent-cli run "分析代码" --provider anthropic
+
+# 使用 DeepSeek（设置 COMPATIBLE_API_KEY 环境变量）
+export COMPATIBLE_API_KEY=sk-xxx
+uv run agent-cli run "写一个排序算法" --provider compatible
+
+# auto 模式按优先级自动检测：ANTHROPIC_API_KEY > COMPATIBLE_API_KEY > Mock
+uv run agent-cli run "你好"        # 自动选择可用模型
+
+# 显式指定 API key 和模型名称
+uv run agent-cli repl --provider compatible --api-key sk-xxx --model deepseek-chat
+
+# 使用其他兼容 API（如 OpenAI）
+uv run agent-cli repl --provider compatible --base-url https://api.openai.com/v1 --api-key sk-xxx
+
+# 显式使用 Mock 模式（无需 API key）
+uv run agent-cli run "你好" --provider mock
 ```
 
 ---
@@ -264,11 +290,13 @@ uv run ruff check src/ tests/
 uv run ruff format src/ tests/ --check
 ```
 
-**173 测试全部通过**，覆盖：
-- Agent Loop (5) · ToolRegistry (8) · Hooks (9) · Session (10)
-- Memory (16) · Compact (13) · Permission (18) · Planning (17)
-- Skills (13) · MCP (10) · Subagent (3) · 监控 (18) · Swarm (24)
-- 以及更多...
+**392 测试全部通过**（覆盖率 67%），覆盖：
+- 数据模型 (9) · Provider (53) · Agent Loop (5) · ToolRegistry (8)
+- Hooks (9) · Session (10) · Memory (16) · Compact (13)
+- Permission (18) · Planning (17) · Skills (13) · MCP (10)
+- Subagent (24) · 监控 (18) · Swarm (24) · 文件工具 (30)
+- Bash (22) · Web (12) · AgentTool (10) · Executor (6)
+- Renderer (16) · REPL (38) · SessionMemory (9)
 
 ---
 
@@ -293,5 +321,5 @@ uv run ruff format src/ tests/ --check
 ---
 
 > **协议**: MIT  
-> **版本**: 0.1.0  
-> **最后更新**: 2026-06-10
+> **版本**: 0.2.0  
+> **最后更新**: 2026-06-11
