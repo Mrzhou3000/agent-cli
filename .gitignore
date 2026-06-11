@@ -7,6 +7,10 @@ build/
 .pytest_cache/
 .ruff_cache/
 
+# 覆盖率数据
+.coverage
+htmlcov/
+
 # 运行时数据（Claude 等工作目录，不上传）
 .agent/
 .claude/
