@@ -101,7 +101,7 @@ class PermissionHook:
                     spec = tool.spec()
                     if spec and spec.safety:
                         return spec.safety.value
-            except Exception:
+            except (AttributeError, TypeError, KeyError):
                 pass
 
         # 回退：硬编码映射（兼容无 registry 的场景）
@@ -116,7 +116,7 @@ class PermissionHook:
                 return SafetyLevel.ALWAYS_ASK.value
             if tool_name in safe_tools:
                 return SafetyLevel.SAFE.value
-        except Exception:
+        except (AttributeError, TypeError, KeyError):
             pass
 
         return SafetyLevel.SAFE.value

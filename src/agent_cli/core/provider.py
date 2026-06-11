@@ -417,7 +417,7 @@ class AnthropicProvider(IModelProvider):
         try:
             with client.messages.stream(**kwargs) as stream:
                 yield from stream.text_stream
-        except Exception as e:
+        except (httpx.RequestError, json.JSONDecodeError) as e:
             yield f"\n[流式调用失败: {e}]"
 
 
@@ -567,5 +567,5 @@ class CompatibleProvider(IModelProvider):
                         except json.JSONDecodeError:
                             continue
 
-        except Exception as e:
+        except (httpx.RequestError, OSError) as e:
             yield f"\n[流式调用失败: {e}]"

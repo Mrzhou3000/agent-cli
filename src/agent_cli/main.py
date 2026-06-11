@@ -425,8 +425,8 @@ def init(
     try:
         cfg_path = save_default_config()
         print(f"  [ok] 创建: {cfg_path}")
-    except Exception:
-        pass  # 非关键，静默失败
+    except OSError as e:
+        logging.getLogger(__name__).warning("保存默认配置失败: %s", e)
 
     for d in dirs:
         (base / d).mkdir(parents=True, exist_ok=True)

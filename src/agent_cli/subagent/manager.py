@@ -110,11 +110,12 @@ class SubagentManager:
         # 1. 构建子 Agent 消息列表
         messages = self._build_context(task, context)
 
-        # 2. 创建子 Agent Loop（独立 HookManager，避免 metrics 重复计数）
+        # 2. 创建子 Agent Loop（继承父级 hooks，排除 metrics 避免重复计数）
+        sub_hooks = self._build_sub_hooks()
         sub_loop = AgentLoop(
             provider=provider or self._parent.provider,
             tools=self._parent.tools,
-            hooks=None,  # 子 Agent 使用独立 HookManager，不继承父级
+            hooks=sub_hooks,
             session_store=None,  # 子Agent 不直接写会话
             memory=None,
             compact=None,
@@ -234,3 +235,26 @@ class SubagentManager:
                     lines.append(f"助手: {text[:200] if text else '[工具调用]'}")
 
         return "\n".join(lines[-max_items:])
+
+    def _build_sub_hooks(self):
+        """构建子 Agent 的 HookManager，继承安全/权限 hooks，排除 metrics。
+
+        父级 hooks 中通常包含 metrics 收集 handler（on_pre_loop、on_post_tool、
+        on_post_loop），子 Agent 共享这些 handler 会导致工具调用被重复计数。
+        本方法复制所有父级 hooks，但跳过 metrics 相关 handler。
+        """
+        parent_hooks = getattr(self._parent, "hooks", None)
+        if parent_hooks is None:
+            return None
+
+        from agent_cli.hooks.manager import HookManager
+
+        sub_hooks = HookManager()
+        metrics_names = {"on_pre_loop", "on_post_tool", "on_post_loop", "on_pre_tool"}
+        for event, handlers in parent_hooks._handlers.items():
+            for handler in handlers:
+                h_name = getattr(handler, "__name__", "")
+                if h_name in metrics_names:
+                    continue  # 跳过 metrics 相关的 handler
+                sub_hooks.on(event, handler)
+        return sub_hooks

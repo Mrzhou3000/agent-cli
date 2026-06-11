@@ -45,7 +45,7 @@ class PermissionEngine:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 self._rules = data.get("rules", {})
                 logger.debug("加载权限规则: %d 条", len(self._rules))
-            except Exception as e:
+            except (json.JSONDecodeError, OSError) as e:
                 logger.warning("加载权限规则失败: %s", e)
 
     def _save_rules(self) -> None:
@@ -59,7 +59,7 @@ class PermissionEngine:
                 json.dumps({"rules": self._rules}, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
-        except Exception as e:
+        except OSError as e:
             logger.warning("保存权限规则失败: %s", e)
 
     def check(self, tool_name: str, safety: str = "safe") -> Decision:

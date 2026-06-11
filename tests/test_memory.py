@@ -149,6 +149,49 @@ class TestProjectMemory:
         assert "第一条笔记" in content
         assert "第二条笔记" in content
 
+    def test_append_cross_section_boundary(self, pm: ProjectMemory):
+        """在多章节文件中，向中间章节追加时不应污染相邻章节。"""
+        pm.update("章节A", "A 内容")
+        pm.update("章节B", "B 内容")
+        pm.update("章节C", "C 内容")
+        # 向中间章节追加
+        pm.append("章节B", "追加到 B")
+        content = pm.read()
+        assert "- 追加到 B" in content
+        # 确认追加行在 ## 章节B 和 ## 章节C 之间
+        section_b_pos = content.index("## 章节B")
+        section_c_pos = content.index("## 章节C")
+        append_pos = content.index("- 追加到 B")
+        assert section_b_pos < append_pos < section_c_pos, (
+            "追加内容应出现在章节B区域内，而非章节A或章节C"
+        )
+        # 章节A 和 章节C 不应被污染
+        assert "A 内容" in content
+        assert "C 内容" in content
+
+    def test_append_to_last_section(self, pm: ProjectMemory):
+        """向最后一个章节追加时，内容应出现在文件末尾区域。"""
+        pm.update("章节X", "X 内容")
+        pm.update("章节Y", "Y 内容")
+        pm.append("章节Y", "追加到尾部")
+        content = pm.read()
+        lines = content.split("\n")
+        y_idx = next(i for i, line in enumerate(lines) if "章节Y" in line)
+        append_idx = next(i for i, line in enumerate(lines) if "追加到尾部" in line)
+        assert y_idx < append_idx, "追加内容应在章节Y之后"
+        # 章节Y之后不应该有其他 ## 标题
+        tail = lines[append_idx:]
+        assert not any(line.startswith("## ") for line in tail), (
+            "最后一个章节追加后不应出现新的章节标题"
+        )
+
+    def test_append_new_section(self, pm: ProjectMemory):
+        """向不存在的章节追加时，应自动创建章节。"""
+        pm.append("新章节", "新内容")
+        content = pm.read()
+        assert "## 新章节" in content
+        assert "- 新内容" in content
+
 
 class TestMemoryManager:
     """MemoryManager 集成测试。"""

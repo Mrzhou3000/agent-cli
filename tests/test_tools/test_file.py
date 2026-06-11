@@ -57,6 +57,42 @@ class TestBaseFileTool:
         with pytest.raises(PermissionError):
             tool._resolve_path("../outside")
 
+    def test_resolve_path_deep_traversal(self, tool: ReadTool, temp_dir: Path):
+        """深层路径穿越（../../）应被拦截。"""
+        with pytest.raises(PermissionError):
+            tool._resolve_path("sub/../../outside")
+
+    def test_resolve_path_mixed_traversal(self, tool: ReadTool, temp_dir: Path):
+        """混合深度的路径穿越（a/b/../../../outside）应被拦截。"""
+        with pytest.raises(PermissionError):
+            tool._resolve_path("a/b/../../../outside")
+
+    def test_resolve_path_absolute_traversal(self, tool: ReadTool, temp_dir: Path):
+        """绝对路径指向 allowed_dir 之外应被拦截。"""
+        with pytest.raises(PermissionError):
+            tool._resolve_path(str(temp_dir.parent / "etc" / "passwd"))
+
+    def test_resolve_path_dot_dot_no_traversal(self, tool: ReadTool, temp_dir: Path):
+        """含 .. 但在 allowed_dir 内的路径应通过。"""
+        sub = temp_dir / "a" / "b"
+        sub.mkdir(parents=True, exist_ok=True)
+        target = sub / "file.txt"
+        target.touch()
+        resolved = tool._resolve_path(str(target))
+        assert str(resolved) == str(target.resolve())
+
+    def test_resolve_path_symlink_outside_allowed(self, tool: ReadTool, temp_dir: Path):
+        """符号链接指向 allowed_dir 之外应被拦截（resolve 后路径超出）。"""
+        outside = temp_dir.parent / "outside_target.txt"
+        outside.touch()
+        link = temp_dir / "evil_link"
+        try:
+            link.symlink_to(outside)
+            with pytest.raises(PermissionError):
+                tool._resolve_path(str(link))
+        except (OSError, NotImplementedError):
+            pytest.skip("当前系统不支持创建符号链接")
+
     def test_default_allowed_dir(self):
         """默认 allowed_dir 为当前工作目录。"""
         tool = ReadTool()

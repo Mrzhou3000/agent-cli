@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from agent_cli.hooks.manager import POST_LOOP, PRE_TOOL, HookManager
 from agent_cli.subagent.manager import SubagentManager, SubagentResult
 
 
@@ -90,7 +91,7 @@ class TestSubagentManagerSpawn:
             _, kwargs = mock_loop_cls.call_args
             assert kwargs["provider"] is mock_parent.provider
             assert kwargs["tools"] is mock_parent.tools
-            assert kwargs["hooks"] is None  # 子 Agent 使用独立 HookManager，不继承父级
+            assert kwargs["hooks"] is not None  # 继承父级 hooks（含安全权限检查）
             assert kwargs["max_iterations"] == 10
 
     def test_spawn_with_custom_provider(self, mock_parent):
@@ -304,3 +305,71 @@ class TestSummarizeMessages:
         summary = mgr._summarize_messages(msgs)
         # 每条消息截断到 200 字符
         assert len(summary) < 500
+
+
+class TestBuildSubHooks:
+    """SubagentManager._build_sub_hooks() 测试。"""
+
+    def test_no_parent_hooks_returns_none(self):
+        """父Agent 无 hooks 时应返回 None。"""
+        parent = MagicMock(spec=[])
+        del parent.hooks  # 模拟没有 hooks 属性
+        mgr = SubagentManager(parent=parent)
+        assert mgr._build_sub_hooks() is None
+
+    def test_parent_hooks_is_none(self):
+        """父 hooks 为 None 时应返回 None。"""
+        parent = MagicMock()
+        parent.hooks = None
+        mgr = SubagentManager(parent=parent)
+        assert mgr._build_sub_hooks() is None
+
+    def test_copies_security_hooks(self):
+        """应继承非 metrics 的 hook（如权限检查）。"""
+        parent = MagicMock()
+        security_handler = MagicMock(__name__="check_tool")
+        parent_hooks = HookManager()
+        parent_hooks.on(PRE_TOOL, security_handler)
+        parent.hooks = parent_hooks
+
+        mgr = SubagentManager(parent=parent)
+        sub_hooks = mgr._build_sub_hooks()
+        assert sub_hooks is not None
+        events = sub_hooks.registered_events
+        assert "pre_tool" in events
+        assert "check_tool" in events["pre_tool"]
+
+    def test_skips_metrics_hooks(self):
+        """应排除 metrics 相关的 handler（on_pre_loop, on_post_tool 等）。"""
+        parent = MagicMock()
+        metrics_handler = MagicMock(__name__="on_post_tool")
+        security_handler = MagicMock(__name__="check_tool")
+        parent_hooks = HookManager()
+        parent_hooks.on(PRE_TOOL, security_handler)
+        parent_hooks.on(POST_LOOP, metrics_handler)
+        parent.hooks = parent_hooks
+
+        mgr = SubagentManager(parent=parent)
+        sub_hooks = mgr._build_sub_hooks()
+        events = sub_hooks.registered_events
+        # 安全 hook 应保留
+        assert "pre_tool" in events
+        assert "check_tool" in events["pre_tool"]
+        # metrics hook 应被排除
+        assert "on_post_loop" not in events.get("post_loop", [])
+        assert "post_loop" not in events or events["post_loop"] == []
+
+    def test_only_metrics_hooks_returns_empty_manager(self):
+        """父 hooks 全是 metrics handler 时应返回空的 HookManager。"""
+        parent = MagicMock()
+        parent_hooks = HookManager()
+        parent_hooks.on(POST_LOOP, MagicMock(__name__="on_post_loop"))
+        parent.hooks = parent_hooks
+
+        mgr = SubagentManager(parent=parent)
+        sub_hooks = mgr._build_sub_hooks()
+        assert sub_hooks is not None
+        # 所有事件都应该没有 handler
+        events = sub_hooks.registered_events
+        all_empty = all(len(h) == 0 for h in events.values())
+        assert all_empty

@@ -83,7 +83,7 @@ class MCPConnection:
         except FileNotFoundError:
             logger.warning("MCP 服务器命令未找到: %s", self.config.command)
             self._process = None
-        except Exception as e:
+        except (OSError, MCPError) as e:
             logger.error("MCP 连接失败 '%s': %s", self.config.name, e)
             self._process = None
 

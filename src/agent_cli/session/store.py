@@ -79,7 +79,7 @@ class SessionStore:
                 for msg in messages:
                     line = json.dumps(msg, ensure_ascii=False)
                     f.write(line + "\n")
-        except Exception as e:
+        except OSError as e:
             logger.error("追加消息失败 [%s]: %s", session_id, e)
 
     def load(self, session_id: str) -> list[dict]:
@@ -103,7 +103,7 @@ class SessionStore:
                     line = line.strip()
                     if line:
                         messages.append(json.loads(line))
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
             logger.error("加载会话失败 [%s]: %s", session_id, e)
 
         return messages
@@ -128,7 +128,7 @@ class SessionStore:
                         "message_count": msg_count,
                     }
                 )
-            except Exception:
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError):
                 continue
         return sessions
 
@@ -162,7 +162,7 @@ class SessionStore:
                         "message_count": msg_count,
                     }
                 )
-            except Exception:
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError):
                 continue
 
         return matches
@@ -197,7 +197,7 @@ class SessionStore:
             src.rename(dst)
             logger.info("归档会话: %s → archives/", session_id)
             return True
-        except Exception as e:
+        except OSError as e:
             logger.error("归档失败 [%s]: %s", session_id, e)
             return False
 
