@@ -309,7 +309,10 @@ def run(
     loop.hooks.on(POST_LOOP, metrics.on_post_loop)
 
     # 权限 Hook — 在 PRE_TOOL 阶段检查权限（Phase 4）
-    perm_hook = PermissionHook(PermissionEngine(rules_file=".agent/permissions.json"))
+    perm_hook = PermissionHook(
+        PermissionEngine(rules_file=".agent/permissions.json"),
+        registry=registry,  # 传入 registry 以读取 ToolSpec.safety
+    )
     loop.hooks.on(PRE_TOOL, perm_hook.check_tool)
 
     # 技能自动注入 Hook（Phase 3）

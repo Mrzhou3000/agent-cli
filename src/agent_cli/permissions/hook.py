@@ -4,7 +4,7 @@
 检查权限决策，实现四级权限的完整闭环。
 
 Usage:
-    hook = PermissionHook(engine)
+    hook = PermissionHook(engine, registry)
     hooks.on(PRE_TOOL, hook.check_tool)
 """
 
@@ -16,6 +16,7 @@ from typing import Any
 from agent_cli.hooks.manager import HookManager
 from agent_cli.permissions.engine import PermissionEngine
 from agent_cli.tools.base import SafetyLevel
+from agent_cli.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +29,17 @@ class PermissionHook:
 
     Usage:
         engine = PermissionEngine(rules_file=".agent/permissions.json")
-        perm_hook = PermissionHook(engine)
+        perm_hook = PermissionHook(engine, registry)
         hooks.on(PRE_TOOL, perm_hook.check_tool)
     """
 
-    def __init__(self, engine: PermissionEngine | None = None):
+    def __init__(
+        self,
+        engine: PermissionEngine | None = None,
+        registry: ToolRegistry | None = None,
+    ):
         self._engine = engine or PermissionEngine()
+        self._registry = registry
         self._check_count = 0
         self._denied_count = 0
         self._asked_count = 0
@@ -84,11 +90,22 @@ class PermissionHook:
     def _get_tool_safety(self, tool_name: str) -> str:
         """获取工具的安全等级描述。
 
-        尝试遍历已知的 SafetyLevel 来做简单判断。
-        如果无法获取，默认返回 "safe"。
+        优先从 ToolRegistry 的 ToolSpec 中读取 safety 定义，
+        回退到内置的硬编码映射（兼容无 registry 的场景）。
         """
+        # 优先从 ToolRegistry 查询真实 safety 等级
+        if self._registry:
+            try:
+                tool = self._registry.get(tool_name)
+                if tool:
+                    spec = tool.spec()
+                    if spec and spec.safety:
+                        return spec.safety.value
+            except Exception:
+                pass
+
+        # 回退：硬编码映射（兼容无 registry 的场景）
         try:
-            # 根据工具名推断安全等级
             dangerous_tools = {"bash", "write", "edit"}
             always_ask_tools = {"web_fetch", "agent"}
             safe_tools = {"read", "glob", "grep"}

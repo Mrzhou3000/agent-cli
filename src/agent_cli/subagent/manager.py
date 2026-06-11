@@ -110,11 +110,11 @@ class SubagentManager:
         # 1. 构建子 Agent 消息列表
         messages = self._build_context(task, context)
 
-        # 2. 创建子 Agent Loop
+        # 2. 创建子 Agent Loop（独立 HookManager，避免 metrics 重复计数）
         sub_loop = AgentLoop(
             provider=provider or self._parent.provider,
             tools=self._parent.tools,
-            hooks=self._parent.hooks,
+            hooks=None,  # 子 Agent 使用独立 HookManager，不继承父级
             session_store=None,  # 子Agent 不直接写会话
             memory=None,
             compact=None,

@@ -1,8 +1,8 @@
 """Bash 工具 — 执行 shell 命令。
 
 安全机制：
-  - cwd 边界检查：禁止逃逸到项目目录之外
-  - 危险命令黑名单：rm -rf /, sudo, 等
+  - cwd 边界检查：实际路径解析防止 cd/pushd 逃逸
+  - 危险命令黑名单：词边界匹配避免误杀/绕过
   - 超时控制：默认 30s 超时
 """
 
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 from typing import Any
 
@@ -17,19 +18,19 @@ from .base import BaseTool, SafetyLevel, ToolSpec
 
 logger = logging.getLogger(__name__)
 
-# 危险命令前缀黑名单
-DANGEROUS_COMMANDS: tuple[str, ...] = (
-    "rm -rf /",
-    "rm -rf --no-preserve-root",
-    "mkfs.",
-    "dd if=",
-    ">:",
-    "| shutdown",
-    "| reboot",
-    "sudo",
-    "chmod 777 /",
-    "chown",
-)
+# 危险命令前缀黑名单（词边界匹配防绕过）
+DANGEROUS_PATTERNS: list[re.Pattern] = [
+    re.compile(r"\brm\s+-rf\s+/"),
+    re.compile(r"\brm\s+-rf\s+--no-preserve-root\b"),
+    re.compile(r"\bmkfs\."),
+    re.compile(r"\bdd\s+if="),
+    re.compile(r">:"),
+    re.compile(r"\|\s*shutdown\b"),
+    re.compile(r"\|\s*reboot\b"),
+    re.compile(r"\bsudo\b(?!\s*-)"),
+    re.compile(r"\bchmod\s+777\s+/"),
+    re.compile(r"\bchown\b"),
+]
 
 
 class BashTool(BaseTool):
@@ -114,15 +115,24 @@ class BashTool(BaseTool):
             return {"stdout": "", "stderr": f"执行错误: {e}", "exit_code": -1}
 
     def _check_safety(self, command: str) -> str | None:
-        """检查命令安全性。返回违规则由描述，否则返回 None。"""
+        """检查命令安全性。返回违规描述，否则返回 None。"""
         cmd_stripped = command.strip().lower()
 
-        for dangerous in DANGEROUS_COMMANDS:
-            if dangerous in cmd_stripped:
-                return f"命令包含黑名单操作: {dangerous}"
+        # 黑名单：词边界正则匹配，避免 sudo→sudoedit 误杀
+        for pattern in DANGEROUS_PATTERNS:
+            if pattern.search(cmd_stripped):
+                return f"命令包含黑名单操作: {pattern.pattern}"
 
-        # cwd 边界检查：路径逃逸
-        if "../" in command and "cd" in command:
-            return "路径逃逸: 禁止使用 ../ 离开允许目录"
+        # 路径逃逸检测：解析 cd/pushd 目标的真实路径
+        allowed_abs = os.path.abspath(self.allowed_dir)
+        for match in re.finditer(
+            r"(?:^|;|&&|\|\|)\s*(?:cd|pushd)\s+(\S+)",
+            cmd_stripped,
+        ):
+            target = match.group(1)
+            # 处理相对路径
+            resolved = os.path.abspath(os.path.join(allowed_abs, target))
+            if not resolved.startswith(allowed_abs):
+                return f"路径逃逸: '{target}' 将离开允许目录 ({self.allowed_dir})"
 
         return None

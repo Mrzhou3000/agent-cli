@@ -90,7 +90,7 @@ class TestSubagentManagerSpawn:
             _, kwargs = mock_loop_cls.call_args
             assert kwargs["provider"] is mock_parent.provider
             assert kwargs["tools"] is mock_parent.tools
-            assert kwargs["hooks"] is mock_parent.hooks
+            assert kwargs["hooks"] is None  # 子 Agent 使用独立 HookManager，不继承父级
             assert kwargs["max_iterations"] == 10
 
     def test_spawn_with_custom_provider(self, mock_parent):
