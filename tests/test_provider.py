@@ -15,6 +15,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from agent_cli.core.provider import (
     AnthropicProvider,
     CompatibleProvider,

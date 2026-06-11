@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from agent_cli.core.loop import AgentLoop
 from agent_cli.core.provider import MockProvider
 from agent_cli.hooks.manager import POST_LOOP, PRE_LOOP, HookManager

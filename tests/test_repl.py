@@ -14,6 +14,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from agent_cli.ui.repl import REPLExit, REPLMode
 
 # ═══════════════════════════════════════════════════════════════════════════════

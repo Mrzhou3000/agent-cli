@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from agent_cli.tools.base import SafetyLevel
 from agent_cli.tools.bash import BashTool
 from agent_cli.tools.file import GlobTool, GrepTool, ReadTool, WriteTool

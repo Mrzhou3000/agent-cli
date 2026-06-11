@@ -33,7 +33,7 @@ repos:
 
   # ── Ruff（代码风格 + 格式化） ─────────────────────────────────────────
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.0
+    rev: v0.15.16
     hooks:
       # ruff check: 代码质量检查（lint）
       - id: ruff

@@ -12,6 +12,7 @@ Executor 在 Agent Loop 和 ToolRegistry 之间提供：
 from __future__ import annotations
 
 import pytest
+
 from agent_cli.core.executor import Executor
 from agent_cli.permissions.engine import PermissionEngine
 from agent_cli.tools.base import BaseTool, SafetyLevel, ToolSpec

@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from agent_cli.core.provider import MockProvider
 from agent_cli.tools.bash import BashTool
 from agent_cli.tools.file import GlobTool, GrepTool, ReadTool, WriteTool

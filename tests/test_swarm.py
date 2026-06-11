@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+
 from agent_cli.subagent.manager import SubagentResult
 from agent_cli.swarm.coordinator import Coordinator, CoordinatorResult, VoteResult
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from agent_cli.subagent.manager import SubagentManager, SubagentResult
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+
 from agent_cli.core.provider import Usage
 from agent_cli.monitor.alerts import Alert, AlertLevel, AlertManager
 from agent_cli.monitor.metrics import MetricsCollector
