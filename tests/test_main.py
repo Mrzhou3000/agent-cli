@@ -582,3 +582,284 @@ class TestMemoryCommand:
                 assert result.exit_code == 0
             finally:
                 os.chdir(orig_dir)
+
+
+# ─── run 命令 ──────────────────────────────────────────────────────
+
+
+class TestRunCommand:
+    """agent-cli run 命令测试（使用 MockProvider + 禁用日志文件）。"""
+
+    @pytest.fixture(autouse=True)
+    def _no_file_logging(self):
+        """避免 _setup_logging 创建文件句柄导致 Windows 权限问题。"""
+        with patch("agent_cli.main._setup_logging"):
+            yield
+
+    def test_run_mock_provider(self, runner: CliRunner):
+        """--provider=mock 应正常执行。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(app, ["run", "你好", "--provider", "mock"])
+                assert result.exit_code == 0
+                assert len(result.output) > 0
+            finally:
+                os.chdir(orig_dir)
+
+    def test_run_with_json(self, runner: CliRunner):
+        """--json 输出模式。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(app, ["run", "hello", "--provider", "mock", "--json"])
+                assert result.exit_code == 0
+                assert len(result.output) > 0
+            finally:
+                os.chdir(orig_dir)
+
+    def test_run_with_model_param(self, runner: CliRunner):
+        """--model 参数传递。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(
+                    app, ["run", "test", "--provider", "mock", "--model", "deepseek-chat"]
+                )
+                assert result.exit_code == 0
+            finally:
+                os.chdir(orig_dir)
+
+    def test_run_with_provider_and_api_key(self, runner: CliRunner):
+        """--api-key 参数传递给 compatible provider 不崩溃。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "hello",
+                        "--provider",
+                        "compatible",
+                        "--api-key",
+                        "sk-test-key",
+                        "--model",
+                        "deepseek-chat",
+                    ],
+                )
+                # 没有真实 key 时应该报错退出（exit_code=1），但不应崩溃
+                assert result.exit_code in (0, 1)
+            finally:
+                os.chdir(orig_dir)
+
+    def test_run_with_base_url(self, runner: CliRunner):
+        """--base-url 参数传递。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "test",
+                        "--provider",
+                        "compatible",
+                        "--api-key",
+                        "sk-test",
+                        "--base-url",
+                        "https://api.openai.com/v1",
+                    ],
+                )
+                assert result.exit_code in (0, 1)
+            finally:
+                os.chdir(orig_dir)
+
+    def test_run_with_max_iter(self, runner: CliRunner):
+        """--max-iter 参数。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(app, ["run", "hi", "--provider", "mock", "--max-iter", "3"])
+                assert result.exit_code == 0
+            finally:
+                os.chdir(orig_dir)
+
+    def test_run_with_verbose(self, runner: CliRunner):
+        """--verbose 输出模式。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(app, ["run", "hi", "--provider", "mock", "--verbose"])
+                assert result.exit_code == 0
+            finally:
+                os.chdir(orig_dir)
+
+
+# ─── swarm 命令 ────────────────────────────────────────────────────
+
+
+class TestSwarmCommand:
+    """agent-cli swarm 命令测试（使用 MockProvider + 禁用日志文件）。"""
+
+    @pytest.fixture(autouse=True)
+    def _no_file_logging(self):
+        """避免 _setup_logging 创建文件句柄导致 Windows 权限问题。"""
+        with patch("agent_cli.main._setup_logging"):
+            yield
+
+    def test_swarm_default_help(self, runner: CliRunner):
+        """swarm 无参数显示帮助。"""
+        result = runner.invoke(app, ["swarm"])
+        assert result.exit_code == 0
+        assert "Swarm" in result.output or "swarm" in result.output.lower()
+
+    def test_swarm_sequential(self, runner: CliRunner):
+        """--sequential 模式应正常执行。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(
+                    app,
+                    [
+                        "swarm",
+                        "--sequential",
+                        "任务1\\n任务2",
+                        "--provider",
+                        "mock",
+                        "--max-iter",
+                        "2",
+                    ],
+                )
+                assert result.exit_code == 0
+            finally:
+                os.chdir(orig_dir)
+
+    def test_swarm_parallel(self, runner: CliRunner):
+        """--parallel 模式应正常执行。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(
+                    app,
+                    [
+                        "swarm",
+                        "--parallel",
+                        "任务A\\n任务B",
+                        "--provider",
+                        "mock",
+                        "--max-iter",
+                        "2",
+                    ],
+                )
+                assert result.exit_code == 0
+            finally:
+                os.chdir(orig_dir)
+
+    def test_swarm_vote(self, runner: CliRunner):
+        """--vote 模式应正常执行。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(
+                    app,
+                    [
+                        "swarm",
+                        "--vote",
+                        "这是测试问题吗？",
+                        "--voters",
+                        "2",
+                        "--provider",
+                        "mock",
+                        "--max-iter",
+                        "2",
+                    ],
+                )
+                assert result.exit_code == 0
+            finally:
+                os.chdir(orig_dir)
+
+    def test_swarm_debate(self, runner: CliRunner):
+        """--debate 模式应正常执行。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(
+                    app,
+                    [
+                        "swarm",
+                        "--debate",
+                        "测试辩论主题",
+                        "--rounds",
+                        "1",
+                        "--provider",
+                        "mock",
+                        "--max-iter",
+                        "2",
+                    ],
+                )
+                assert result.exit_code == 0
+            finally:
+                os.chdir(orig_dir)
+
+    def test_swarm_with_verbose(self, runner: CliRunner):
+        """--verbose 输出模式。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(
+                    app,
+                    [
+                        "swarm",
+                        "--sequential",
+                        "任务1\\n任务2",
+                        "--verbose",
+                        "--provider",
+                        "mock",
+                        "--max-iter",
+                        "2",
+                    ],
+                )
+                assert result.exit_code == 0
+            finally:
+                os.chdir(orig_dir)
+
+    def test_swarm_with_provider_params(self, runner: CliRunner):
+        """swarm 命令的 provider 参数传递。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(
+                    app,
+                    [
+                        "swarm",
+                        "--vote",
+                        "test?",
+                        "--provider",
+                        "mock",
+                        "--api-key",
+                        "sk-test",
+                        "--base-url",
+                        "https://api.deepseek.com/v1",
+                        "--voters",
+                        "2",
+                        "--max-iter",
+                        "2",
+                    ],
+                )
+                assert result.exit_code == 0
+            finally:
+                os.chdir(orig_dir)
