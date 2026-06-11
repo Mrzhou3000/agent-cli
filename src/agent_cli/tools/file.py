@@ -1,7 +1,6 @@
 """文件操作工具集 — Read / Write / Edit / Glob / Grep。
 
 安全机制（来源：14days-build）：
-  - read-before-edit：Edit 前必须已读取文件
   - cwd 边界：所有操作限制在 allowed_dir 内
   - 编码安全：自动处理 UTF-8 编码
 """
@@ -143,10 +142,6 @@ class WriteTool(_BaseFileTool):
 
 class EditTool(_BaseFileTool):
     """编辑文件 — 精确替换。"""
-
-    def __init__(self, allowed_dir: str | None = None):
-        super().__init__(allowed_dir)
-        self._read_cache: dict[str, str] = {}
 
     def spec(self) -> ToolSpec:
         return ToolSpec(

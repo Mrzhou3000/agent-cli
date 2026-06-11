@@ -629,7 +629,10 @@ class TestCompatibleProviderInvoke:
             mock_httpx_cls.return_value = mock_client
 
             mock_resp = MagicMock()
-            mock_resp.raise_for_status.side_effect = Exception("HTTP 500")
+            mock_resp.status_code = 500
+            mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "Server Error", request=MagicMock(), response=mock_resp
+            )
             mock_client.post.return_value = mock_resp
 
             p = self._make_provider()
@@ -639,11 +642,11 @@ class TestCompatibleProviderInvoke:
             assert resp.stop_reason == "end_turn"
 
     def test_invoke_general_exception(self):
-        """通用异常应返回包含错误信息的 Response。"""
+        """网络错误应返回包含错误信息的 Response。"""
         with patch("httpx.Client") as mock_httpx_cls:
             mock_client = MagicMock()
             mock_httpx_cls.return_value = mock_client
-            mock_client.post.side_effect = ConnectionError("连接被拒绝")
+            mock_client.post.side_effect = httpx.ConnectError("连接被拒绝", request=MagicMock())
 
             p = self._make_provider()
             resp = p.invoke(messages=[{"role": "user", "content": "hi"}])

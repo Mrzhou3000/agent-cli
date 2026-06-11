@@ -9,7 +9,7 @@ import pytest
 
 from agent_cli.core.provider import MockProvider
 from agent_cli.tools.bash import BashTool
-from agent_cli.tools.file import GlobTool, GrepTool, ReadTool, WriteTool
+from agent_cli.tools.file import EditTool, GlobTool, GrepTool, ReadTool, WriteTool
 from agent_cli.tools.registry import ToolRegistry
 
 
@@ -28,7 +28,7 @@ def tool_registry() -> ToolRegistry:
     r.register(WriteTool())
     r.register(GlobTool())
     r.register(GrepTool())
-    r.register(WriteTool())
+    r.register(EditTool())
     return r
 
 

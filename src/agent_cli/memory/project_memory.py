@@ -98,7 +98,10 @@ class ProjectMemory:
                     in_section = True
                     continue
                 if in_section and (line_text.startswith("## ") or i == len(lines) - 1):
-                    new_lines.insert(-1 if i == len(lines) - 1 else -1, f"- {line}")
+                    if i == len(lines) - 1:
+                        new_lines.append(f"- {line}")
+                    else:
+                        new_lines.insert(-1, f"- {line}")
                     appended = True
                     in_section = False
             if not appended:

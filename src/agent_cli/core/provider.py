@@ -524,7 +524,7 @@ class CompatibleProvider(IModelProvider):
                 usage=usage,
             )
 
-        except Exception as e:
+        except (httpx.HTTPStatusError, httpx.RequestError, json.JSONDecodeError, KeyError) as e:
             return Response(
                 stop_reason="end_turn",
                 content=[{"type": "text", "text": f"API 调用失败: {e}"}],
