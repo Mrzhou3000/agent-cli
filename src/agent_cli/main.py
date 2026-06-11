@@ -152,9 +152,7 @@ def _create_provider(
 
     import logging
 
-    logging.getLogger(__name__).info(
-        "未检测到任何 API key，使用 MockProvider（仅测试用）"
-    )
+    logging.getLogger(__name__).info("未检测到任何 API key，使用 MockProvider（仅测试用）")
     return MockProvider()
 
 
@@ -190,7 +188,9 @@ def run(
     json_output: bool = Option(False, "--json", "-j", help="JSON 输出模式"),
     provider_opt: str = Option("auto", "--provider", "-p", help="auto/anthropic/compatible/mock"),
     api_key: str | None = Option(None, "--api-key", "-k", help="API 密钥，覆盖环境变量"),
-    base_url: str | None = Option(None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"),
+    base_url: str | None = Option(
+        None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"
+    ),
     resume: str | None = Option(None, "--resume", help="恢复会话 ID"),
     max_iterations: int = Option(20, "--max-iter", help="最大循环迭代次数"),
     allowed_dir: str | None = Option(None, "--dir", "-d", help="允许的工作目录"),
@@ -296,7 +296,9 @@ def repl(
     model: str = Option("", "--model", "-m", help="模型名（auto→claude, comp→deepseek）"),
     provider_opt: str = Option("auto", "--provider", "-p", help="auto/anthropic/compatible/mock"),
     api_key: str | None = Option(None, "--api-key", "-k", help="API 密钥，覆盖环境变量"),
-    base_url: str | None = Option(None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"),
+    base_url: str | None = Option(
+        None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"
+    ),
     allowed_dir: str | None = Option(None, "--dir", "-d", help="允许的工作目录"),
     memory: bool = Option(True, "--memory/--no-memory", help="启用/禁用三级记忆"),
     compact: bool = Option(True, "--compact/--no-compact", help="启用/禁用上下文压缩"),
@@ -876,7 +878,9 @@ def swarm(
     model: str = Option("", "--model", "-m", help="模型名（auto→claude, comp→deepseek）"),
     provider_opt: str = Option("auto", "--provider", "-p", help="auto/anthropic/compatible/mock"),
     api_key: str | None = Option(None, "--api-key", "-k", help="API 密钥，覆盖环境变量"),
-    base_url: str | None = Option(None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"),
+    base_url: str | None = Option(
+        None, "--base-url", help="兼容 API 的基础 URL（如 https://api.deepseek.com/v1）"
+    ),
 ):
     """多 Agent 协作模式。
 

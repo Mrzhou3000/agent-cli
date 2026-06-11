@@ -12,7 +12,6 @@ Executor 在 Agent Loop 和 ToolRegistry 之间提供：
 from __future__ import annotations
 
 import pytest
-
 from agent_cli.core.executor import Executor
 from agent_cli.permissions.engine import PermissionEngine
 from agent_cli.tools.base import BaseTool, SafetyLevel, ToolSpec
@@ -32,7 +31,11 @@ class TestExecutor:
                 return ToolSpec(
                     name="echo",
                     description="回显",
-                    parameters={"type": "object", "properties": {"msg": {"type": "string"}}, "required": ["msg"]},
+                    parameters={
+                        "type": "object",
+                        "properties": {"msg": {"type": "string"}},
+                        "required": ["msg"],
+                    },
                     handler=self.execute,
                     safety=SafetyLevel.SAFE,
                 )
@@ -75,6 +78,7 @@ class TestExecutor:
 
     def test_execute_tool_exception(self, executor, registry):
         """工具执行抛出异常时应返回 success=False。"""
+
         # 注入一个会抛异常的工具
         class BrokenTool(BaseTool):
             def spec(self) -> ToolSpec:
@@ -96,6 +100,7 @@ class TestExecutor:
 
     def test_execute_result_not_dict(self, executor, registry):
         """工具返回非 dict 时应自动包装为 dict。"""
+
         class StrTool(BaseTool):
             def spec(self) -> ToolSpec:
                 return ToolSpec(

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agent_cli.hooks.manager import (
     POST_LOOP,
     POST_TOOL,

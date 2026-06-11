@@ -7,11 +7,11 @@ Agent-CLI 基础使用演示脚本。
 
 from agent_cli.core.loop import AgentLoop
 from agent_cli.core.provider import MockProvider
-from agent_cli.tools.registry import ToolRegistry
+from agent_cli.tools.agent_tool import AgentTool
 from agent_cli.tools.bash import BashTool
 from agent_cli.tools.file import GlobTool, GrepTool, ReadTool, WriteTool
+from agent_cli.tools.registry import ToolRegistry
 from agent_cli.tools.web import WebFetchTool
-from agent_cli.tools.agent_tool import AgentTool
 
 
 def main():

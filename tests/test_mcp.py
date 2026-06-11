@@ -9,7 +9,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from agent_cli.mcp.bridge import MCPError, MCPToolBridge
 from agent_cli.mcp.models import MCPServerConfig, MCPToolDef
 

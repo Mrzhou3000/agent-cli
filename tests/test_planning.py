@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from agent_cli.planning.models import TaskPlan, TodoItem
 from agent_cli.planning.planner import TaskPlanner
 

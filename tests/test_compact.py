@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agent_cli.compact.pipeline import CompactPipeline, _estimate_tokens
 
 

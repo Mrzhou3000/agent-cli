@@ -12,7 +12,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent_cli.subagent.manager import SubagentManager, SubagentResult
 
 
@@ -75,19 +74,19 @@ class TestSubagentManagerSpawn:
 
     def test_spawn_creates_agent_loop(self, mock_parent):
         """spawn 应创建一个新的 AgentLoop 实例。"""
-        with patch("agent_cli.subagent.manager.AgentLoop") as MockLoop:
+        with patch("agent_cli.subagent.manager.AgentLoop") as mock_loop_cls:
             mock_loop_instance = MagicMock()
             mock_loop_instance.run.return_value.text = "结果文本"
             mock_loop_instance._iteration = 3
             mock_loop_instance._session_messages = []
-            MockLoop.return_value = mock_loop_instance
+            mock_loop_cls.return_value = mock_loop_instance
 
             mgr = SubagentManager(parent=mock_parent)
-            result = mgr.spawn(task="搜索 TODO")
+            mgr.spawn(task="搜索 TODO")
 
             # 验证 AgentLoop 被用正确参数创建
-            MockLoop.assert_called_once()
-            _, kwargs = MockLoop.call_args
+            mock_loop_cls.assert_called_once()
+            _, kwargs = mock_loop_cls.call_args
             assert kwargs["provider"] is mock_parent.provider
             assert kwargs["tools"] is mock_parent.tools
             assert kwargs["hooks"] is mock_parent.hooks
@@ -95,27 +94,27 @@ class TestSubagentManagerSpawn:
 
     def test_spawn_with_custom_provider(self, mock_parent):
         """spawn 可以使用独立的 provider。"""
-        with patch("agent_cli.subagent.manager.AgentLoop") as MockLoop:
+        with patch("agent_cli.subagent.manager.AgentLoop") as mock_loop_cls:
             mock_loop_instance = MagicMock()
             mock_loop_instance.run.return_value.text = "结果"
             mock_loop_instance._iteration = 1
             mock_loop_instance._session_messages = []
-            MockLoop.return_value = mock_loop_instance
+            mock_loop_cls.return_value = mock_loop_instance
 
             custom_provider = MagicMock()
-            mgr = SubagentManager(parent=MockLoop, max_iterations=5)
+            mgr = SubagentManager(parent=mock_loop_cls, max_iterations=5)
             mgr.spawn(task="搜索", provider=custom_provider)
 
     def test_spawn_success_result(self, mock_parent):
         """spawn 成功时应返回正确的 SubagentResult。"""
-        with patch("agent_cli.subagent.manager.AgentLoop") as MockLoop:
+        with patch("agent_cli.subagent.manager.AgentLoop") as mock_loop_cls:
             mock_loop = MagicMock()
             mock_loop.run.return_value.text = "找到 5 个结果"
             mock_loop._iteration = 2
             mock_loop._session_messages = [{"role": "assistant", "content": "完成"}]
             # mock tool_calls
             mock_loop.run.return_value.tool_calls = ["call_1", "call_2"]
-            MockLoop.return_value = mock_loop
+            mock_loop_cls.return_value = mock_loop
 
             mgr = SubagentManager(parent=mock_parent)
             result = mgr.spawn(task="搜索 TODO")
@@ -129,10 +128,10 @@ class TestSubagentManagerSpawn:
 
     def test_spawn_exception(self, mock_parent):
         """spawn 执行异常时应记录 error。"""
-        with patch("agent_cli.subagent.manager.AgentLoop") as MockLoop:
+        with patch("agent_cli.subagent.manager.AgentLoop") as mock_loop_cls:
             mock_loop = MagicMock()
             mock_loop.run.side_effect = RuntimeError("子Agent 崩溃")
-            MockLoop.return_value = mock_loop
+            mock_loop_cls.return_value = mock_loop
 
             mgr = SubagentManager(parent=mock_parent)
             result = mgr.spawn(task="搜索 TODO")
@@ -245,7 +244,12 @@ class TestSummarizeMessages:
                 "role": "assistant",
                 "content": [
                     {"type": "text", "text": "我来搜索"},
-                    {"type": "tool_use", "id": "tu_1", "name": "grep", "input": {"pattern": "TODO"}},
+                    {
+                        "type": "tool_use",
+                        "id": "tu_1",
+                        "name": "grep",
+                        "input": {"pattern": "TODO"},
+                    },
                 ],
             }
         ]
@@ -260,7 +264,12 @@ class TestSummarizeMessages:
             {
                 "role": "assistant",
                 "content": [
-                    {"type": "tool_use", "id": "tu_1", "name": "grep", "input": {"pattern": "TODO"}},
+                    {
+                        "type": "tool_use",
+                        "id": "tu_1",
+                        "name": "grep",
+                        "input": {"pattern": "TODO"},
+                    },
                 ],
             }
         ]

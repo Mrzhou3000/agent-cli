@@ -18,7 +18,12 @@ from agent_cli.tools.web import WebFetchTool
 class TestWebFetchTool:
     """WebFetchTool 单元测试。"""
 
-    def make_mock_response(self, text: str, content_type: str = "text/html", status_code: int = 200):
+    def make_mock_response(
+        self,
+        text: str,
+        content_type: str = "text/html",
+        status_code: int = 200,
+    ):
         """创建模拟的 httpx 响应对象（MagicMock 完全控制）。"""
         mock_resp = MagicMock()
         mock_resp.text = text

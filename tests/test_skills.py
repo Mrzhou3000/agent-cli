@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from agent_cli.skills.loader import SkillLoader
 from agent_cli.skills.models import SkillSpec
 

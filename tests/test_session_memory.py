@@ -13,7 +13,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
-
 from agent_cli.memory.session_memory import SessionMemory
 
 
@@ -60,10 +59,13 @@ class TestSessionMemory:
     def test_get_session_summary_existing(self, mem: SessionMemory):
         """存在的会话应返回摘要信息。"""
         sid = mem.store.create()
-        mem.store.append(sid, [
-            {"role": "user", "content": "帮我搜索"},
-            {"role": "assistant", "content": "好的"},
-        ])
+        mem.store.append(
+            sid,
+            [
+                {"role": "user", "content": "帮我搜索"},
+                {"role": "assistant", "content": "好的"},
+            ],
+        )
         summary = mem.get_session_summary(sid)
         assert summary is not None
         assert summary["session_id"] == sid
@@ -80,10 +82,13 @@ class TestSessionMemory:
     def test_get_relevant_context_keyword_match(self, mem: SessionMemory):
         """有关键词匹配应返回相关消息。"""
         sid = mem.store.create()
-        mem.store.append(sid, [
-            {"role": "user", "content": "Python 开发"},
-            {"role": "assistant", "content": "Python 是很好的语言"},
-        ])
+        mem.store.append(
+            sid,
+            [
+                {"role": "user", "content": "Python 开发"},
+                {"role": "assistant", "content": "Python 是很好的语言"},
+            ],
+        )
         results = mem.get_relevant_context("python")
         assert len(results) >= 1
         assert any("Python" in r["content"] for r in results)
@@ -91,11 +96,14 @@ class TestSessionMemory:
     def test_get_relevant_context_content_list(self, mem: SessionMemory):
         """消息 content 为列表时也能正确搜索。"""
         sid = mem.store.create()
-        mem.store.append(sid, [
-            {
-                "role": "assistant",
-                "content": [{"type": "text", "text": "关于 Python 的说明"}],
-            }
-        ])
+        mem.store.append(
+            sid,
+            [
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "关于 Python 的说明"}],
+                }
+            ],
+        )
         results = mem.get_relevant_context("python")
         assert len(results) >= 1

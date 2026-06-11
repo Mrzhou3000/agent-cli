@@ -193,7 +193,7 @@ def _to_yaml_value(value: Any, indent: int = 0) -> str:
     prefix = " " * indent
     if isinstance(value, bool):
         return "true" if value else "false"
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return str(value)
     if isinstance(value, list):
         if not value:

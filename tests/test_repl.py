@@ -14,12 +14,12 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent_cli.ui.repl import REPLExit, REPLMode
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @pytest.fixture
 def mock_provider():
@@ -70,7 +70,15 @@ def mock_alerts():
 
 
 @pytest.fixture
-def repl(mock_provider, mock_tools, mock_session_store, mock_memory, mock_compact, mock_metrics, mock_alerts):
+def repl(
+    mock_provider,
+    mock_tools,
+    mock_session_store,
+    mock_memory,
+    mock_compact,
+    mock_metrics,
+    mock_alerts,
+):
     """带所有依赖的完整 REPLMode 实例。"""
     return REPLMode(
         provider=mock_provider,
@@ -89,6 +97,7 @@ def repl(mock_provider, mock_tools, mock_session_store, mock_memory, mock_compac
 # REPLExit 异常
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestREPLExit:
     """REPLExit 异常测试。"""
 
@@ -105,6 +114,7 @@ class TestREPLExit:
 # ═══════════════════════════════════════════════════════════════════════════════
 # REPLMode.__init__
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestREPLModeInit:
     """REPLMode.__init__ 测试。"""
@@ -136,6 +146,7 @@ class TestREPLModeInit:
 # _handle_command
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestHandleCommand:
     """_handle_command 各命令分支测试。"""
 
@@ -164,7 +175,10 @@ class TestHandleCommand:
     def test_save_with_session(self, repl: REPLMode, capsys):
         """有 session 时 /save 应保存会话。"""
         repl._session_id = "sess_test"
-        repl._history = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+        repl._history = [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+        ]
         repl._handle_command("/save")
         captured = capsys.readouterr()
         assert "已保存" in captured.out
@@ -196,7 +210,12 @@ class TestHandleCommand:
 
     def test_stats_no_compact(self, mock_provider, mock_tools, mock_metrics, mock_alerts, capsys):
         """无 compact 时 /stats 不应显示压缩信息。"""
-        r = REPLMode(provider=mock_provider, tools=mock_tools, metrics=mock_metrics, alerts=mock_alerts)
+        r = REPLMode(
+            provider=mock_provider,
+            tools=mock_tools,
+            metrics=mock_metrics,
+            alerts=mock_alerts,
+        )
         r._handle_command("/stats")
         captured = capsys.readouterr()
         assert "压缩触发" not in captured.out
@@ -212,7 +231,7 @@ class TestHandleCommand:
     def test_sessions_search(self, repl: REPLMode, capsys):
         """/sessions --search=关键词 应搜索会话（命令被转小写，用全小写关键词）。"""
         repl._handle_command("/sessions --search=todo")
-        captured = capsys.readouterr()
+        capsys.readouterr()
         repl.session_store.find_by_keyword.assert_called_with("todo")
 
     def test_sessions_search_no_keyword(self, repl: REPLMode, capsys):
@@ -225,7 +244,7 @@ class TestHandleCommand:
         """/sessions <id> 应显示指定会话。"""
         repl.session_store.load.return_value = [{"role": "user", "content": "hello"}]
         repl._handle_command("/sessions sess_123")
-        captured = capsys.readouterr()
+        capsys.readouterr()
         repl.session_store.load.assert_called_with("sess_123")
 
     def test_sessions_without_store(self, mock_provider, mock_tools, capsys):
@@ -260,7 +279,7 @@ class TestHandleCommand:
     def test_memory_with_memory(self, repl: REPLMode, capsys):
         """有 memory 时 /memory 应列出记忆。"""
         repl._handle_command("/memory")
-        captured = capsys.readouterr()
+        capsys.readouterr()
         repl.memory.file.list_all.assert_called_once()
 
     def test_memory_without_memory(self, mock_provider, mock_tools, capsys):
@@ -308,18 +327,19 @@ class TestHandleCommand:
 # _run_agent
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestRunAgent:
     """_run_agent 测试。"""
 
     def test_run_agent_success(self, repl: REPLMode, capsys):
         """_run_agent 成功时应打印回复。"""
-        with patch("agent_cli.ui.repl.AgentLoop") as MockLoop:
+        with patch("agent_cli.ui.repl.AgentLoop") as mock_loop_cls:
             mock_loop = MagicMock()
             mock_loop.run.return_value.text = "你好，我是 Agent"
             mock_loop.run.return_value.tool_calls = []
             mock_loop._iteration = 1
             mock_loop._session_messages = [{"role": "assistant", "content": "你好"}]
-            MockLoop.return_value = mock_loop
+            mock_loop_cls.return_value = mock_loop
 
             repl._run_agent("你好")
 
@@ -329,13 +349,13 @@ class TestRunAgent:
     def test_run_agent_verbose(self, mock_provider, mock_tools, capsys):
         """verbose 模式应显示迭代和工具信息。"""
         r = REPLMode(provider=mock_provider, tools=mock_tools, verbose=True)
-        with patch("agent_cli.ui.repl.AgentLoop") as MockLoop:
+        with patch("agent_cli.ui.repl.AgentLoop") as mock_loop_cls:
             mock_loop = MagicMock()
             mock_loop.run.return_value.text = "完成"
             mock_loop.run.return_value.tool_calls = ["tu_1"]
             mock_loop._iteration = 2
             mock_loop._session_messages = []
-            MockLoop.return_value = mock_loop
+            mock_loop_cls.return_value = mock_loop
 
             r._run_agent("搜索")
 
@@ -345,10 +365,10 @@ class TestRunAgent:
 
     def test_run_agent_error(self, repl: REPLMode, capsys):
         """_run_agent 异常时应打印错误。"""
-        with patch("agent_cli.ui.repl.AgentLoop") as MockLoop:
+        with patch("agent_cli.ui.repl.AgentLoop") as mock_loop_cls:
             mock_loop = MagicMock()
             mock_loop.run.side_effect = RuntimeError("API 错误")
-            MockLoop.return_value = mock_loop
+            mock_loop_cls.return_value = mock_loop
 
             repl._run_agent("查询")
 
@@ -361,32 +381,36 @@ class TestRunAgent:
 # run (主循环)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestRun:
     """REPLMode.run() 主循环测试。"""
 
     def test_run_keyboard_interrupt(self, repl: REPLMode, capsys):
         """Ctrl+C 应退出循环。"""
-        with patch("agent_cli.ui.repl.AgentLoop"):
-            with patch("builtins.input", side_effect=KeyboardInterrupt):
-                repl.run()
-                captured = capsys.readouterr()
-                assert "再见" in captured.out
+        with (
+            patch("agent_cli.ui.repl.AgentLoop"),
+            patch("builtins.input", side_effect=KeyboardInterrupt),
+        ):
+            repl.run()
+            captured = capsys.readouterr()
+            assert "再见" in captured.out
 
     def test_run_eof_error(self, repl: REPLMode, capsys):
         """Ctrl+D (EOFError) 应退出循环。"""
-        with patch("agent_cli.ui.repl.AgentLoop"):
-            with patch("builtins.input", side_effect=EOFError):
-                repl.run()
-                captured = capsys.readouterr()
-                assert "再见" in captured.out
+        with patch("agent_cli.ui.repl.AgentLoop"), patch("builtins.input", side_effect=EOFError):
+            repl.run()
+            captured = capsys.readouterr()
+            assert "再见" in captured.out
 
     def test_run_empty_input(self, repl: REPLMode, capsys):
         """空输入应跳过，直接退出。"""
-        with patch("agent_cli.ui.repl.AgentLoop"):
-            with patch("builtins.input", side_effect=["", "/exit"]):
-                repl.run()
-                captured = capsys.readouterr()
-                assert "再见" in captured.out
+        with (
+            patch("agent_cli.ui.repl.AgentLoop"),
+            patch("builtins.input", side_effect=["", "/exit"]),
+        ):
+            repl.run()
+            captured = capsys.readouterr()
+            assert "再见" in captured.out
 
     def test_run_exit_command(self, repl: REPLMode, capsys):
         """/exit 应退出 REPL。"""
@@ -404,18 +428,20 @@ class TestRun:
 
     def test_run_normal_conversation(self, repl: REPLMode, capsys):
         """正常对话应调用 Agent 并打印回复。"""
-        with patch("agent_cli.ui.repl.AgentLoop") as MockLoop:
+        with (
+            patch("agent_cli.ui.repl.AgentLoop") as mock_loop_cls,
+            patch("builtins.input", side_effect=["你好", "/exit"]),
+        ):
             mock_loop = MagicMock()
             mock_loop.run.return_value.text = "回复内容"
             mock_loop.run.return_value.tool_calls = []
             mock_loop._iteration = 1
             mock_loop._session_messages = [{"role": "assistant", "content": "回复内容"}]
-            MockLoop.return_value = mock_loop
+            mock_loop_cls.return_value = mock_loop
 
-            with patch("builtins.input", side_effect=["你好", "/exit"]):
-                repl.run()
-                captured = capsys.readouterr()
-                assert "回复内容" in captured.out
+            repl.run()
+            captured = capsys.readouterr()
+            assert "回复内容" in captured.out
 
     def test_run_session_creation(self, mock_provider, mock_tools, mock_session_store, capsys):
         """有 session_store 时应创建新会话。"""

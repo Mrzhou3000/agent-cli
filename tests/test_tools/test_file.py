@@ -13,7 +13,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from agent_cli.tools.file import (
     EditTool,
     GlobTool,
@@ -25,6 +24,7 @@ from agent_cli.tools.file import (
 # ═══════════════════════════════════════════════════════════════════════════════
 # _BaseFileTool 基础路径安全
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestBaseFileTool:
     """_BaseFileTool 路径解析和安全检查（通过 ReadTool 测试，因基类为抽象类）。"""
@@ -65,6 +65,7 @@ class TestBaseFileTool:
 # ═══════════════════════════════════════════════════════════════════════════════
 # ReadTool 读取文件
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestReadTool:
     """ReadTool 文件读取测试。"""
@@ -138,6 +139,7 @@ class TestReadTool:
 # WriteTool 写入文件
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestWriteTool:
     """WriteTool 文件写入测试。"""
 
@@ -185,6 +187,7 @@ class TestWriteTool:
 # EditTool 编辑文件
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestEditTool:
     """EditTool 文件编辑测试。"""
 
@@ -207,7 +210,12 @@ class TestEditTool:
 
     def test_edit_replace_all(self, tool: EditTool, sample_file: Path):
         """replace_all=True 替换所有匹配。"""
-        result = tool.execute(path=str(sample_file), old_string="aaa", new_string="xxx", replace_all=True)
+        result = tool.execute(
+            path=str(sample_file),
+            old_string="aaa",
+            new_string="xxx",
+            replace_all=True,
+        )
         assert result["success"] is True
         content = sample_file.read_text()
         assert content == "xxx bbb xxx bbb xxx\n"
@@ -248,6 +256,7 @@ class TestEditTool:
 # ═══════════════════════════════════════════════════════════════════════════════
 # GlobTool 文件通配匹配
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestGlobTool:
     """GlobTool 文件查找测试。"""
@@ -291,6 +300,7 @@ class TestGlobTool:
 # ═══════════════════════════════════════════════════════════════════════════════
 # GrepTool 文件内容搜索
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestGrepTool:
     """GrepTool 文件内容搜索测试。"""

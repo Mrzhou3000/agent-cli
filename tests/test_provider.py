@@ -15,7 +15,6 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent_cli.core.provider import (
     AnthropicProvider,
     CompatibleProvider,
@@ -30,6 +29,7 @@ from agent_cli.core.provider import (
 # ═══════════════════════════════════════════════════════════════════════════════
 # 数据模型
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestDataModels:
     """Message / ToolCall / Usage / Response dataclass 测试。"""
@@ -101,6 +101,7 @@ class TestDataModels:
 # ═══════════════════════════════════════════════════════════════════════════════
 # _parse_response
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestParseResponse:
     """_parse_response 工具函数测试。"""
@@ -222,6 +223,7 @@ class TestParseResponse:
 # ═══════════════════════════════════════════════════════════════════════════════
 # AnthropicProvider
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestAnthropicProviderInit:
     """AnthropicProvider.__init__ 测试。"""
@@ -392,6 +394,7 @@ class TestAnthropicProviderInvoke:
 # CompatibleProvider
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TestCompatibleProviderInit:
     """CompatibleProvider.__init__ 测试。"""
 
@@ -485,15 +488,18 @@ class TestCompatibleProviderInvoke:
             mock_client = MagicMock()
             mock_httpx_cls.return_value = mock_client
 
-            self._mock_post(mock_client, {
-                "choices": [
-                    {
-                        "message": {"content": "你好世界"},
-                        "finish_reason": "stop",
-                    }
-                ],
-                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-            })
+            self._mock_post(
+                mock_client,
+                {
+                    "choices": [
+                        {
+                            "message": {"content": "你好世界"},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+                },
+            )
 
             p = self._make_provider()
             resp = p.invoke(messages=[{"role": "user", "content": "hi"}])
@@ -510,27 +516,30 @@ class TestCompatibleProviderInvoke:
             mock_client = MagicMock()
             mock_httpx_cls.return_value = mock_client
 
-            self._mock_post(mock_client, {
-                "choices": [
-                    {
-                        "message": {
-                            "content": "执行命令",
-                            "tool_calls": [
-                                {
-                                    "id": "call_001",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "bash",
-                                        "arguments": '{"command": "ls"}',
-                                    },
-                                }
-                            ],
-                        },
-                        "finish_reason": "tool_calls",
-                    }
-                ],
-                "usage": {},
-            })
+            self._mock_post(
+                mock_client,
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "执行命令",
+                                "tool_calls": [
+                                    {
+                                        "id": "call_001",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "bash",
+                                            "arguments": '{"command": "ls"}',
+                                        },
+                                    }
+                                ],
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ],
+                    "usage": {},
+                },
+            )
 
             p = self._make_provider()
             resp = p.invoke(messages=[{"role": "user", "content": "run ls"}])
@@ -547,35 +556,38 @@ class TestCompatibleProviderInvoke:
             mock_client = MagicMock()
             mock_httpx_cls.return_value = mock_client
 
-            self._mock_post(mock_client, {
-                "choices": [
-                    {
-                        "message": {
-                            "content": "",
-                            "tool_calls": [
-                                {
-                                    "id": "call_1",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "bash",
-                                        "arguments": '{"command": "ls"}',
+            self._mock_post(
+                mock_client,
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "",
+                                "tool_calls": [
+                                    {
+                                        "id": "call_1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "bash",
+                                            "arguments": '{"command": "ls"}',
+                                        },
                                     },
-                                },
-                                {
-                                    "id": "call_2",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "web_fetch",
-                                        "arguments": '{"url": "https://example.com"}',
+                                    {
+                                        "id": "call_2",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "web_fetch",
+                                            "arguments": '{"url": "https://example.com"}',
+                                        },
                                     },
-                                },
-                            ],
-                        },
-                        "finish_reason": "tool_calls",
-                    }
-                ],
-                "usage": {},
-            })
+                                ],
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ],
+                    "usage": {},
+                },
+            )
 
             p = self._make_provider()
             resp = p.invoke(messages=[{"role": "user", "content": "do both"}])
@@ -590,10 +602,13 @@ class TestCompatibleProviderInvoke:
             mock_client = MagicMock()
             mock_httpx_cls.return_value = mock_client
 
-            self._mock_post(mock_client, {
-                "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
-                "usage": {},
-            })
+            self._mock_post(
+                mock_client,
+                {
+                    "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+                    "usage": {},
+                },
+            )
 
             p = self._make_provider(model="deepseek-coder", max_tokens=2048)
             p.invoke(messages=[{"role": "user", "content": "hi"}])
@@ -639,15 +654,18 @@ class TestCompatibleProviderInvoke:
             mock_client = MagicMock()
             mock_httpx_cls.return_value = mock_client
 
-            self._mock_post(mock_client, {
-                "choices": [
-                    {
-                        "message": {"content": None},
-                        "finish_reason": "stop",
-                    }
-                ],
-                "usage": {},
-            })
+            self._mock_post(
+                mock_client,
+                {
+                    "choices": [
+                        {
+                            "message": {"content": None},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {},
+                },
+            )
 
             p = self._make_provider()
             resp = p.invoke(messages=[{"role": "user", "content": "hi"}])
@@ -658,6 +676,7 @@ class TestCompatibleProviderInvoke:
 # ═══════════════════════════════════════════════════════════════════════════════
 # MockProvider（增强）
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class TestMockProvider:
     """MockProvider 补充测试（核心路径已在 loop 测试中覆盖）。"""

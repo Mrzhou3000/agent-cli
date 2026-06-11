@@ -159,9 +159,7 @@ class TestBashToolExecute:
         """超时应返回超时错误。"""
         tool = BashTool()
         with patch("agent_cli.tools.bash.subprocess.run") as mock_run:
-            mock_run.side_effect = subprocess.TimeoutExpired(
-                cmd="sleep 100", timeout=5
-            )
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd="sleep 100", timeout=5)
             result = tool.execute(command="sleep 100", timeout=5)
             assert result["exit_code"] == -1
             assert "超时" in result["stderr"]

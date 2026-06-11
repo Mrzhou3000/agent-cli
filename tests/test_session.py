@@ -6,7 +6,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from agent_cli.session.store import SessionStore, generate_session_id
 
 

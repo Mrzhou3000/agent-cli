@@ -1,7 +1,7 @@
 # Agent-CLI 个人助手 · 工业级开发规范文档
 
-> **版本**: v1.0.0  
-> **最后更新**: 2026-06-10  
+> **版本**: v1.0.0
+> **最后更新**: 2026-06-10
 > **项目定位**: 轻量级个人助手 Agent —— 集三大开源项目（learn-claude-code / 14days-build-claude-code-cli / claude-code-complete-guide_v2）设计思想之大成的融合实现
 
 ---
@@ -313,50 +313,50 @@ agent-cli/                          # 项目根目录
 class AgentLoop:
     """
     Agent 核心循环。
-    
+
     设计哲学：循环本身极其简单，所有复杂机制"挂在循环上"而非"写进循环里"。
-    
+
     Usage:
         loop = AgentLoop(provider=AnthropicProvider(), tools=ToolRegistry())
         result = loop.run(messages=[{"role": "user", "content": "你好"}])
     """
-    
+
     def __init__(self, provider: IModelProvider, tools: ToolRegistry):
         self.provider = provider      # ModelProvider 抽象层
         self.tools = tools            # ToolRegistry 注册中心
         self.hooks = HookManager()    # 4个 Hook 点
         self.memory = MemoryManager() # 三级记忆
         self.compact = CompactPipeline() # L1-L4压缩管道
-    
+
     def run(self, messages: list) -> str:
         """运行 Agent 循环，返回最终文本回复。"""
         while True:
             # === Phase 1: 模型推理 ===
             response = self.provider.invoke(messages, self.tools.schemas())
             messages.append(response)
-            
+
             # === Phase 2: 判断 ===
             if response.stop_reason != "tool_use":
                 # 文本回复 → 输出并结束
                 return response.text
-            
+
             # === Phase 3: 工具执行 ===
             for block in response.content:
                 if block.type != "tool_use":
                     continue
-                
+
                 self.hooks.trigger("pre_tool", block)
                 try:
                     result = self.tools.execute(block.name, **block.input)
                 except Exception as e:
                     result = {"error": str(e)}
                 self.hooks.trigger("post_tool", block, result)
-                
+
                 messages.append({
                     "role": "user",
                     "content": [{"type": "tool_result", "tool_use_id": block.id, "content": result}]
                 })
-            
+
             # === Phase 4: 上下文压缩检测 ===
             if self.compact.should_compact(messages):
                 messages = self.compact.compress(messages)
@@ -369,7 +369,7 @@ class AgentLoop:
 
 class IModelProvider(ABC):
     """模型提供者接口。"""
-    
+
     @abstractmethod
     def invoke(self, messages: list, tools: list[dict]) -> Response:
         """调用模型，返回响应。"""
@@ -420,12 +420,12 @@ class SafetyLevel(Enum):
 
 class BaseTool(ABC):
     """工具基类。所有工具必须继承此类。"""
-    
+
     @abstractmethod
     def spec(self) -> ToolSpec:
         """返回工具的元信息描述。"""
         ...
-    
+
     @abstractmethod
     def execute(self, **kwargs) -> Any:
         """执行工具逻辑。"""
@@ -439,26 +439,26 @@ class BaseTool(ABC):
 
 class ToolRegistry:
     """工具注册中心。
-    
+
     管理所有工具的注册、查找、执行。
     支持自动生成 LLM 所需的 JSON Schema 格式。
-    
+
     Usage:
         registry = ToolRegistry()
         registry.register(BashTool())
         schemas = registry.schemas()  # → LLM 可用的 tool 列表
         result = registry.execute("bash", command="echo hello")
     """
-    
+
     def __init__(self):
         self._tools: dict[str, BaseTool] = {}
-    
+
     def register(self, tool: BaseTool) -> None:
         """注册工具。同名工具会覆盖并产生警告。"""
-    
+
     def schemas(self) -> list[dict]:
         """生成 LLM API 所需的 tools 参数格式。"""
-    
+
     def execute(self, name: str, **kwargs) -> Any:
         """执行指定工具。"""
 ```
@@ -565,39 +565,39 @@ class ToolRegistry:
 class CompactPipeline:
     """
     四层上下文压缩管道。
-    
+
     L1 (丢弃层 - 零API):
         - 丢弃已完成的工具调用 block 细节
         - 丢弃过期的系统消息片段
         - 压缩文件路径为相对/短路径
-    
+
     L2 (合并层 - 零API):
         - 合并相邻同类消息（连续 tool_result）
         - 压缩重复出现的代码块引用
-    
+
     L3 (摘要层 - 零API):
         - 对早期对话做结构化摘要
         - 提取关键决策和结论
         - 移除非核心的中间步骤
-    
+
     L4 (重写层 - 模型API):
         - 用 LLM 重写关键上下文
         - 保持语义完整性
         - 标记压缩来源位置
     """
-    
+
     COMPACT_RATIO = 0.7   # 70% 阈值触发 L1-L3
     CRITICAL_RATIO = 0.9  # 90% 阈值触发 L4
-    
+
     def should_compact(self, messages: list) -> bool:
         """检查是否需要压缩。"""
         current = self._count_tokens(messages)
         return current > self._max_tokens * self.COMPACT_RATIO
-    
+
     def compress(self, messages: list) -> list:
         """执行渐进压缩。"""
         ratio = self._count_tokens(messages) / self._max_tokens
-        
+
         if ratio < self.COMPACT_RATIO:
             return messages
         messages = self._layer1_discard(messages)
@@ -664,19 +664,19 @@ class CompactPipeline:
 class SubagentManager:
     """
     子Agent管理器。
-    
+
     子Agent = 独立消息列表的 Agent Loop 实例。
     继承父 Agent 的工具集，但拥有完全独立的上下文。
-    
+
     Usage:
         sub = SubagentManager(parent_loop)
         result = sub.spawn("搜索项目中所有的 TODO 注释")
     """
-    
+
     def spawn(self, task: str, context: dict | None = None) -> SubagentResult:
         """
         派发一个子Agent。
-        
+
         流程:
         1. 创建独立的消息列表（从父Agent摘要继承上下文）
         2. 创建新的 Agent Loop 实例
@@ -732,22 +732,22 @@ triggers: ["python", "pip", "pytest", "django", "flask"]
 class HookManager:
     """
     钩子管理器。
-    
+
     Hook 点:
       pre_loop(messages) → messages   # 循环开始前，可修改消息
       pre_tool(block)    → block       # 工具执行前
       post_tool(block, result) → None  # 工具执行后
       post_loop(response) → response   # 循环结束后（文本回复）
-    
+
     内置 Hook 示例:
       - 日志记录: 记录每次工具调用
       - 性能追踪: 计时工具执行耗时
       - 用户通知: 长时间操作时提醒用户
     """
-    
+
     def on(self, event: str, handler: Callable):
         """注册 Hook 处理器。"""
-    
+
     def trigger(self, event: str, *args, **kwargs):
         """触发 Hook 事件。"""
 ```
@@ -899,16 +899,16 @@ class ProviderUnavailableError(AgentError):
 class SessionStore:
     """
     会话存储。
-    
+
     使用 JSONL（JSON Lines）格式存储消息。
     每行一个完整消息对象，追加写入，天然支持流式。
-    
+
     文件结构:
       .agent/sessions/
       ├── 20260610_143022_abc123.jsonl  # 活跃会话
       └── archives/                     # 24h以上归档
           └── 20260609_091234_def456.jsonl
-    
+
     Usage:
         store = SessionStore()
         store.append("session_1", message)
@@ -1009,7 +1009,7 @@ class PermissionDecision:
 │  3. Agent Loop        │
 │     Phase 1: 推理     │  Provider.invoke() → LLM 返回 tool_use
 │     Phase 2: 判断     │  stop_reason == "tool_use" → 进入 Phase 3
-│     Phase 3: 执行     │  
+│     Phase 3: 执行     │
 │       ① pre_tool hook │  日志: "调用 WriteTool"
 │       ② Permission    │  WriteTool 安全等级 → allow/ask
 │       ③ ToolRegistry  │  execute("write", path="test.txt", content="hello")
@@ -1349,7 +1349,7 @@ Phase 4 — 多Agent与完善
 
 ---
 
-> **文档版本**: v1.0.0  
-> **最后更新**: 2026-06-10  
-> **作者**: 基于三大开源项目设计思想融合而成  
+> **文档版本**: v1.0.0
+> **最后更新**: 2026-06-10
+> **作者**: 基于三大开源项目设计思想融合而成
 > **协议**: MIT

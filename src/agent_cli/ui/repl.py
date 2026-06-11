@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import logging
-import sys
 from typing import Any
 
 from agent_cli.compact.pipeline import CompactPipeline

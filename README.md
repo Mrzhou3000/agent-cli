@@ -5,7 +5,7 @@
 [![License MIT](https://img.shields.io/badge/license-MIT-green)]()
 [![Tests](https://img.shields.io/badge/tests-392%20passing-brightgreen)]()
 
-> 集三大开源项目设计思想之大成的轻量级个人助手 Agent。  
+> 集三大开源项目设计思想之大成的轻量级个人助手 Agent。
 > 融合 [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code)、[14days-build-claude-code-cli](https://github.com/bozhouDev/14days-build-claude-code-cli)、[claude-code-complete-guide_v2](https://github.com/bcefghj/claude-code-complete-guide_v2) 的设计精华。
 
 ---
@@ -320,6 +320,6 @@ uv run ruff format src/ tests/ --check
 
 ---
 
-> **协议**: MIT  
-> **版本**: 0.2.0  
+> **协议**: MIT
+> **版本**: 0.2.0
 > **最后更新**: 2026-06-11
