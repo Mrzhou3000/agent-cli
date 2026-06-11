@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,7 @@ from agent_cli.core.provider import (
     IModelProvider,
     MockProvider,
 )
-from agent_cli.hooks.manager import PRE_LOOP, HookManager
+from agent_cli.hooks.manager import PRE_LOOP
 from agent_cli.mcp.bridge import MCPToolBridge
 from agent_cli.memory.manager import MemoryManager
 from agent_cli.monitor.alerts import AlertManager
@@ -264,6 +265,11 @@ def run(
     perm_hook = PermissionHook(PermissionEngine(rules_file=".agent/permissions.json"))
     loop.hooks.on(PRE_TOOL, perm_hook.check_tool)
 
+    # 技能自动注入 Hook（Phase 3）
+    skill_handler = _build_skill_handler()
+    if skill_handler:
+        loop.hooks.on(PRE_LOOP, skill_handler)
+
     # 运行
     try:
         response = loop.run(prompt, messages=messages, session_id=session_id)
@@ -330,6 +336,9 @@ def repl(
 
     compact_pipe = CompactPipeline(max_tokens=max_tokens, provider=provider) if compact else None
 
+    # 技能自动注入处理器
+    skill_handler = _build_skill_handler()
+
     # 启动 REPL
     repl_session = REPLMode(
         provider=provider,
@@ -341,6 +350,7 @@ def repl(
         resume_session=resume,
         metrics=metrics,
         alerts=alerts,
+        skill_handler=skill_handler,
     )
     repl_session.run()
 
@@ -496,8 +506,8 @@ def memory(
 # ─── Phase 3: 技能自动注入 Hook ─────────────────────────────────
 
 
-def _build_skill_hook(base_dir: str = ".agent") -> HookManager | None:
-    """创建带技能自动注入的 HookManager。
+def _build_skill_handler(base_dir: str = ".agent") -> Callable | None:
+    """创建技能自动注入处理器。
 
     在 PRE_LOOP 阶段检测用户输入，自动注入匹配的技能内容。
 
@@ -505,14 +515,12 @@ def _build_skill_hook(base_dir: str = ".agent") -> HookManager | None:
         base_dir: .agent 目录路径。
 
     Returns:
-        配置好的 HookManager，或 None（无技能文件时）。
+        PRE_LOOP handler，或 None（无技能文件时）。
     """
     loader = SkillLoader(base_dir=base_dir)
     skills = loader.load_all()
     if not skills:
         return None
-
-    hooks = HookManager()
 
     def inject_skills(messages: list[dict]) -> None:
         """PRE_LOOP handler: 自动注入匹配的技能。"""
@@ -537,8 +545,7 @@ def _build_skill_hook(base_dir: str = ".agent") -> HookManager | None:
             inject = "\n\n---\n".join(skill_texts)
             messages.insert(0, {"role": "system", "content": f"[匹配技能]\n{inject[:2000]}"})
 
-    hooks.on(PRE_LOOP, inject_skills)
-    return hooks
+    return inject_skills
 
 
 # ─── Phase 3 CLI 命令 ──────────────────────────────────────────

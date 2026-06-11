@@ -232,3 +232,81 @@ count: 42
         assert parsed["triggers"] == ["python", "pytest"]
         assert parsed["enabled"] is True
         assert parsed["count"] == 42
+
+    def test_yaml_parser_edge_cases(self, loader: SkillLoader):
+        """YAML parser edge cases."""
+        # boolean false
+        parsed = loader._parse_yaml("enabled: false\nactive: no\nflag: off")
+        assert parsed["enabled"] is False
+        assert parsed["active"] is False
+        assert parsed["flag"] is False
+
+        # float
+        parsed = loader._parse_yaml("ratio: 3.14\ncount: 42")
+        assert parsed["ratio"] == 3.14
+        assert parsed["count"] == 42
+
+        # inline list
+        parsed = loader._parse_yaml("tags: [a, b, c]")
+        assert parsed["tags"] == ["a", "b", "c"]
+
+        # comment line skipped
+        parsed = loader._parse_yaml("# comment\nkey: val")
+        assert parsed["key"] == "val"
+
+    def test_triggers_as_string(self, tmp_path: Path, loader: SkillLoader):
+        """triggers as comma-separated string."""
+        _create_skill_file(
+            tmp_path,
+            "test-skill",
+            "---\nname: test-skill\ndescription: Test\ntriggers: python, pytest, pip\n---\nContent",
+        )
+        loader.load_all()
+        skill = loader.get_skill("test-skill")
+        assert skill is not None
+        assert "python" in skill.triggers
+        assert "pytest" in skill.triggers
+
+    def test_triggers_as_other_type(self, tmp_path: Path, loader: SkillLoader):
+        """triggers as unsupported type falls back to empty list."""
+        _create_skill_file(
+            tmp_path,
+            "test-skill",
+            "---\nname: test-skill\ndescription: Test\ntriggers: 123\n---\nContent",
+        )
+        loader.load_all()
+        skill = loader.get_skill("test-skill")
+        assert skill is not None
+        assert skill.triggers == []
+
+    def test_load_all_skips_bad_file(self, tmp_path: Path, loader: SkillLoader):
+        """load_all skips corrupt files."""
+        _create_skill_file(tmp_path, "good", "---\nname: good\n---\nOK")
+        bad_path = Path(tmp_path / ".agent" / "skills" / "bad.md")
+        bad_path.parent.mkdir(parents=True, exist_ok=True)
+        bad_path.write_bytes(b"\xff\xfe\x00\x01bad")
+        skills = loader.load_all()
+        assert len(skills) >= 1
+        assert "good" in [s.name for s in skills]
+
+    def test_get_skill_from_file_not_cached(self, tmp_path: Path, loader: SkillLoader):
+        """get_skill loads from file when not cached."""
+        _create_skill_file(
+            tmp_path, "uncached", "---\nname: uncached\ndescription: Not cached\n---\nContent"
+        )
+        skill = loader.get_skill("uncached")
+        assert skill is not None
+        assert skill.name == "uncached"
+
+    def test_get_skill_load_failure(self, tmp_path: Path, loader: SkillLoader):
+        """get_skill returns None on load failure."""
+        bad_path = Path(tmp_path / ".agent" / "skills" / "broken.md")
+        bad_path.parent.mkdir(parents=True, exist_ok=True)
+        bad_path.write_bytes(b"\xff\xfe\x00\x01")
+        skill = loader.get_skill("broken")
+        assert skill is None
+
+    def test_find_matching_empty_text(self, loader: SkillLoader):
+        """find_matching with empty text returns empty list."""
+        assert loader.find_matching("") == []
+        assert loader.find_matching("  ") == []

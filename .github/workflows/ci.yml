@@ -84,16 +84,16 @@ jobs:
         run: uv run ruff format src/ tests/ --check
 
       # Step 8: 运行 pytest 单元测试
-      # --cov=src/ 测量 src/ 目录的测试覆盖率
+      # --cov=agent_cli 测量核心代码的测试覆盖率
       # --cov-report=term 在终端输出覆盖率报告
-      # -v 详细模式，显示每个测试的名字和结果
+      # --cov-fail-under=80 覆盖率低于 80% 时 CI 失败（低于当前 87% 的保守阈值）
       - name: "🧪 运行测试"
-        run: uv run pytest tests/ -v --cov=src/ --cov-report=term
+        run: uv run pytest tests/ -v --cov=agent_cli --cov-report=term --cov-fail-under=80
 
       # Step 9: mypy 静态类型检查（非阻塞，仅供参考）
       # ⚠️ continue-on-error 表示这个步骤失败不会导致整个 workflow 变红
-      # 因为目前项目还有 122 个 mypy 错误，需要逐步修复
-      - name: "📝 Mypy 类型检查（当前: 122 errors）"
+      # 目前项目对核心模块（agent_cli.core.*）启用了 disallow_untyped_defs
+      - name: "📝 Mypy 类型检查"
         continue-on-error: true
         run: uv run mypy src/ || true
 

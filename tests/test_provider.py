@@ -19,6 +19,7 @@ import pytest
 from agent_cli.core.provider import (
     AnthropicProvider,
     CompatibleProvider,
+    IModelProvider,
     Message,
     MockProvider,
     Response,
@@ -750,3 +751,130 @@ class TestMockProvider:
             {"type": "tool_use", "id": "tu_1", "name": "bash", "input": {}},
         ]
         assert p._extract_text(blocks) == "hello"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# invoke_stream（流式调用）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestInvokeStream:
+    """invoke_stream 流式调用测试。"""
+
+    def test_mock_provider_stream_text(self):
+        """MockProvider 流式调用应产出文本。"""
+        p = MockProvider()
+        chunks = list(p.invoke_stream(messages=[{"role": "user", "content": "hello"}]))
+        assert len(chunks) > 0
+        text = "".join(chunks)
+        assert "Agent-CLI" in text
+
+    def test_mock_provider_stream_with_tool_call(self):
+        """工具调用响应的 stream 产出辅助文本。"""
+        p = MockProvider()
+        chunks = list(p.invoke_stream(messages=[{"role": "user", "content": "执行 ls 命令"}]))
+        # MockProvider 的工具调用也包含"好的，我来执行"辅助文本
+        assert len(chunks) > 0
+        text = "".join(chunks)
+        assert "执行" in text
+
+    def test_default_implementation(self):
+        """未重写的 stream 应回退到 invoke。"""
+
+        class MinimalProvider(IModelProvider):
+            def invoke(self, messages, tools=None):
+                return Response(
+                    stop_reason="end_turn",
+                    content=[{"type": "text", "text": "hello world"}],
+                    text="hello world",
+                )
+
+        p = MinimalProvider()
+        chunks = list(p.invoke_stream(messages=[{"role": "user", "content": "hi"}]))
+        assert "".join(chunks) == "hello world"
+
+    def test_default_implementation_no_text(self):
+        """无文本时默认 stream 应产出空列表。"""
+
+        class ToolOnlyProvider(IModelProvider):
+            def invoke(self, messages, tools=None):
+                return Response(
+                    stop_reason="tool_use",
+                    content=[],
+                    text="",
+                )
+
+        p = ToolOnlyProvider()
+        chunks = list(p.invoke_stream(messages=[{"role": "user", "content": "do tool"}]))
+        assert chunks == []
+
+    @patch("httpx.Client")
+    def test_compatible_provider_stream_yields_chunks(self, mock_httpx_cls):
+        """CompatibleProvider 流式响应应逐块产出文本。"""
+        mock_client = MagicMock()
+        mock_httpx_cls.return_value = mock_client
+
+        mock_stream = MagicMock()
+        mock_stream.__enter__.return_value = mock_stream
+        mock_client.stream.return_value = mock_stream
+        mock_stream.iter_lines.return_value = [
+            'data: {"choices":[{"delta":{"content":"你好"}}]}',
+            'data: {"choices":[{"delta":{"content":"世界"}}]}',
+            "data: [DONE]",
+        ]
+
+        p = CompatibleProvider(api_key="sk-test")
+        chunks = list(p.invoke_stream(messages=[{"role": "user", "content": "hi"}]))
+        assert "".join(chunks) == "你好世界"
+
+    @patch("httpx.Client")
+    def test_compatible_provider_stream_error(self, mock_httpx_cls):
+        """CompatibleProvider 流式调用失败时应产出错误信息。"""
+        mock_client = MagicMock()
+        mock_httpx_cls.return_value = mock_client
+        mock_client.stream.side_effect = ConnectionError("连接超时")
+
+        p = CompatibleProvider(api_key="sk-test")
+        chunks = list(p.invoke_stream(messages=[{"role": "user", "content": "hi"}]))
+        assert any("失败" in c for c in chunks)
+
+    @patch("httpx.Client")
+    def test_compatible_provider_stream_skips_irrelevant_lines(self, mock_httpx_cls):
+        """CompatibleProvider 流式跳过 SSE 注释行和空行。"""
+        mock_client = MagicMock()
+        mock_httpx_cls.return_value = mock_client
+
+        mock_stream = MagicMock()
+        mock_stream.__enter__.return_value = mock_stream
+        mock_client.stream.return_value = mock_stream
+        mock_stream.iter_lines.return_value = [
+            ": comment line",
+            "",
+            'data: {"choices":[{"delta":{"content":"hello"}}]}',
+            "data: [DONE]",
+        ]
+
+        p = CompatibleProvider(api_key="sk-test")
+        chunks = list(p.invoke_stream(messages=[{"role": "user", "content": "hi"}]))
+        assert "".join(chunks) == "hello"
+
+    @patch("httpx.Client")
+    def test_compatible_provider_stream_passes_tools(self, mock_httpx_cls):
+        """CompatibleProvider 流式调用应透传 tools 参数。"""
+        mock_client = MagicMock()
+        mock_httpx_cls.return_value = mock_client
+
+        mock_stream = MagicMock()
+        mock_stream.__enter__.return_value = mock_stream
+        mock_client.stream.return_value = mock_stream
+        mock_stream.iter_lines.return_value = ["data: [DONE]"]
+
+        p = CompatibleProvider(api_key="sk-test", model="deepseek-chat")
+        tools = [{"name": "bash", "description": "Run commands"}]
+        list(p.invoke_stream(messages=[{"role": "user", "content": "hi"}], tools=tools))
+
+        mock_client.stream.assert_called_once()
+        _, kwargs = mock_client.stream.call_args
+        assert kwargs["json"]["model"] == "deepseek-chat"
+        assert kwargs["json"]["stream"] is True
+        assert "tools" in kwargs["json"]

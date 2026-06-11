@@ -7,11 +7,13 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from agent_cli.compact.pipeline import CompactPipeline
 from agent_cli.core.loop import AgentLoop
 from agent_cli.core.provider import IModelProvider
+from agent_cli.hooks.manager import PRE_LOOP
 from agent_cli.memory.manager import MemoryManager
 from agent_cli.session.store import SessionStore
 from agent_cli.tools.registry import ToolRegistry
@@ -46,6 +48,7 @@ class REPLMode:
         resume_session: str | None = None,
         metrics: Any = None,
         alerts: Any = None,
+        skill_handler: Callable | None = None,
     ):
         self.provider = provider
         self.tools = tools
@@ -56,6 +59,7 @@ class REPLMode:
         self.verbose = verbose
         self.metrics = metrics
         self.alerts = alerts
+        self.skill_handler = skill_handler
         self._history: list[dict] = []
         self._session_id: str | None = None
         self._resume_session = resume_session
@@ -301,6 +305,10 @@ class REPLMode:
             compact=self.compact,
             max_iterations=self.max_iterations,
         )
+
+        # 技能自动注入 Hook
+        if self.skill_handler:
+            loop.hooks.on(PRE_LOOP, self.skill_handler)
 
         try:
             response = loop.run(

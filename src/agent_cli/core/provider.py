@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -80,6 +81,23 @@ class IModelProvider(ABC):
             包含模型响应内容的 Response 对象。
         """
         ...
+
+    def invoke_stream(self, messages: list[dict], tools: list[dict] | None = None) -> Iterator[str]:
+        """流式调用模型，逐个产出文本块。
+
+        默认实现直接返回 invoke() 的完整文本（非流式）。
+        子类可重写此方法以提供真正的流式输出。
+
+        Args:
+            messages: 消息列表。
+            tools: 工具定义列表（可选）。
+
+        Yields:
+            文本块，每次产出累积的新内容。
+        """
+        response = self.invoke(messages, tools=tools)
+        if response.text:
+            yield response.text
 
 
 # ─── 内部助手 ───────────────────────────────────────────────────
@@ -210,6 +228,12 @@ class MockProvider(IModelProvider):
             tool_calls=[ToolCall(id=tool_id, name=tool_name, input=tool_input)],
         )
 
+    def invoke_stream(self, messages: list[dict], tools: list[dict] | None = None) -> Iterator[str]:
+        """流式调用 MockProvider — 逐字符模拟流式输出。"""
+        response = self.invoke(messages, tools=tools)
+        if response.text:
+            yield from response.text
+
     def _guess_tool(self, text: str) -> tuple[str, dict]:
         """根据文本猜测应调用的工具。"""
         if "bash" in text or "执行" in text or "命令" in text or "运行" in text:
@@ -281,6 +305,25 @@ class AnthropicProvider(IModelProvider):
         raw = client.messages.create(**kwargs)
 
         return _parse_response(raw.model_dump(mode="json"))
+
+    def invoke_stream(self, messages: list[dict], tools: list[dict] | None = None) -> Iterator[str]:
+        """流式调用 Anthropic Claude API。"""
+        client = self._get_client()
+
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "messages": messages,
+            "stream": True,
+        }
+        if tools:
+            kwargs["tools"] = tools
+
+        try:
+            with client.messages.stream(**kwargs) as stream:
+                yield from stream.text_stream
+        except Exception as e:
+            yield f"\n[流式调用失败: {e}]"
 
 
 # ─── CompatibleProvider ─────────────────────────────────────────
@@ -387,3 +430,42 @@ class CompatibleProvider(IModelProvider):
                 content=[{"type": "text", "text": f"API 调用失败: {e}"}],
                 text=f"API 调用失败: {e}",
             )
+
+    def invoke_stream(self, messages: list[dict], tools: list[dict] | None = None) -> Iterator[str]:
+        """流式调用兼容 API（SSE）。
+
+        使用 httpx 的流式传输逐块产出文本，
+        支持 OpenAI 兼容的 SSE 格式（如 DeepSeek、OpenAI）。
+        """
+        client = self._get_client()
+
+        body: dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "messages": messages,
+            "stream": True,
+        }
+        if tools:
+            body["tools"] = tools
+
+        try:
+            with client.stream("POST", "/chat/completions", json=body) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if not line or line.startswith(":"):
+                        continue
+                    if line.startswith("data: "):
+                        payload = line[6:].strip()
+                        if payload == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(payload)
+                            delta = chunk.get("choices", [{}])[0].get("delta", {})
+                            content = delta.get("content")
+                            if content:
+                                yield content
+                        except json.JSONDecodeError:
+                            continue
+
+        except Exception as e:
+            yield f"\n[流式调用失败: {e}]"

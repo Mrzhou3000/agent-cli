@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 import pytest
 
 from agent_cli.core.loop import AgentLoop
-from agent_cli.core.provider import MockProvider
+from agent_cli.core.provider import MockProvider, Response, ToolCall
 from agent_cli.hooks.manager import POST_LOOP, PRE_LOOP, HookManager
+from agent_cli.memory.manager import MemoryManager
+from agent_cli.session.store import SessionStore
 from agent_cli.tools.bash import BashTool
 from agent_cli.tools.registry import ToolRegistry
 
@@ -85,3 +90,42 @@ class TestAgentLoop:
         loop = AgentLoop(provider=mock_provider, tools=registry)
         response = loop.run(prompt="", messages=[{"role": "user", "content": "直接传入"}])
         assert response.stop_reason == "end_turn"
+
+    def test_unknown_tool_keyerror(self, registry: ToolRegistry):
+        """调用不存在的工具时返回错误信息而非崩溃。"""
+
+        class UnknownToolProvider(MockProvider):
+            def invoke(self, messages, tools=None):
+                return Response(
+                    stop_reason="tool_use",
+                    content=[
+                        {"type": "tool_use", "id": "tu_bad", "name": "ghost_tool", "input": {}}
+                    ],
+                    tool_calls=[ToolCall(id="tu_bad", name="ghost_tool", input={})],
+                )
+
+        loop = AgentLoop(provider=UnknownToolProvider(), tools=registry, max_iterations=3)
+        response = loop.run("use ghost tool")
+        # 循环应正常结束，不崩溃
+        assert response.stop_reason in ("end_turn", "max_tokens")
+
+    def test_memory_context_injection(self, mock_provider: MockProvider, registry: ToolRegistry):
+        """MemoryManager 注入记忆上下文到系统消息。"""
+        with tempfile.TemporaryDirectory() as td:
+            mem = MemoryManager(base_dir=str(Path(td) / ".agent"))
+            mem.write_note("test-mem", "Remember user likes Python", tags=["python"])
+            loop = AgentLoop(provider=mock_provider, tools=registry, memory=mem)
+            response = loop.run("Python related question")
+            assert response.stop_reason == "end_turn"
+
+    def test_session_persistence(self, mock_provider: MockProvider, registry: ToolRegistry):
+        """SessionStore 持久化消息。"""
+        with tempfile.TemporaryDirectory() as td:
+            store = SessionStore(base_dir=str(Path(td) / ".agent"))
+            loop = AgentLoop(provider=mock_provider, tools=registry, session_store=store)
+            sid = store.create()
+            response = loop.run("test", session_id=sid)
+            assert response.stop_reason == "end_turn"
+            # verify messages were persisted
+            loaded = store.load(sid)
+            assert len(loaded) >= 1

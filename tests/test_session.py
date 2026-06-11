@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -106,3 +108,51 @@ class TestSessionStore:
             store.append(sid, [{"role": "user", "content": f"Python topic {i}"}])
         results = store.find_by_keyword("Python", max_results=2)
         assert len(results) <= 2
+
+    def test_archive_nonexistent(self, store: SessionStore):
+        """归档不存在的会话返回 False。"""
+        assert store.archive("sess_nonexistent") is False
+
+    def test_archive_failure_logs_error(self, store: SessionStore, caplog):
+        """归档失败时记录日志并返回 False。"""
+        sid = store.create()
+        store.append(sid, [{"role": "user", "content": "test"}])
+        with patch.object(Path, "rename", side_effect=PermissionError("denied")):
+            result = store.archive(sid)
+            assert result is False
+
+    def test_append_error_logged(self, store: SessionStore, caplog):
+        """追加消息失败时记录日志，不抛出异常。"""
+        caplog.set_level(logging.ERROR)
+        # 使用不存在的路径触发写入错误
+        broken = SessionStore(base_dir=str(Path(tempfile.mktemp()) / ".agent"))
+        # create 会创建目录，但我们可以模拟写保护
+        sid = broken.create()
+        # 删掉 sessions 目录使后续写入失败
+        import shutil
+
+        shutil.rmtree(Path(broken._base_dir) / "sessions")
+        broken.append(sid, [{"role": "user", "content": "test"}])
+        assert len(caplog.records) >= 1
+
+    def test_load_error_logged(self, store: SessionStore, caplog):
+        """加载损坏会话时记录日志并返回空列表。"""
+        caplog.set_level(logging.ERROR)
+        sid = store.create()
+        store.append(sid, [{"role": "user", "content": "valid"}])
+        # 向文件写入非 JSON 内容使其损坏
+        path = Path(store._sessions_dir) / f"{sid}.jsonl"
+        path.write_text("not valid json\n", encoding="utf-8")
+        loaded = store.load(sid)
+        assert loaded == []
+
+    def test_list_sessions_skips_corrupt(self, store: SessionStore):
+        """list_sessions 遇到损坏文件时跳过而非崩溃。"""
+        sid = store.create()
+        store.append(sid, [{"role": "user", "content": "test"}])
+        # 额外写入一个原始文件
+        extra = Path(store._sessions_dir) / "sess_corrupt.jsonl"
+        extra.write_bytes(b"\xff\xfe\x00\x01")  # 非 UTF-8 内容
+        sessions = store.list_sessions()
+        # 应该跳过损坏文件，仍然列出正常文件
+        assert any(s["id"] == sid for s in sessions)

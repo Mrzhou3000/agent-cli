@@ -3,7 +3,8 @@
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue)]()
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000)]()
 [![License MIT](https://img.shields.io/badge/license-MIT-green)]()
-[![Tests](https://img.shields.io/badge/tests-392%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-563%20passing-brightgreen)]()
+[![CI](https://github.com/Mrzhou3000/agent-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/Mrzhou3000/agent-cli/actions/workflows/ci.yml)
 
 > 集三大开源项目设计思想之大成的轻量级个人助手 Agent。
 > 融合 [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code)、[14days-build-claude-code-cli](https://github.com/bozhouDev/14days-build-claude-code-cli)、[claude-code-complete-guide_v2](https://github.com/bcefghj/claude-code-complete-guide_v2) 的设计精华。
@@ -93,6 +94,18 @@ uv run agent-cli repl --provider compatible --base-url https://api.openai.com/v1
 
 # 显式使用 Mock 模式（无需 API key）
 uv run agent-cli run "你好" --provider mock
+```
+
+### 流式输出
+
+`CompatibleProvider` 和 `AnthropicProvider` 支持流式输出（SSE），逐字返回结果：
+
+```bash
+# DeepSeek 流式输出
+uv run agent-cli run "讲个故事" --provider compatible --api-key sk-xxx
+
+# Claude 流式输出（默认启用）
+uv run agent-cli run "讲个故事"
 ```
 
 ---
@@ -285,15 +298,21 @@ REPL 模式下可用命令：
 # 运行所有测试
 uv run pytest tests/ -v
 
+# 覆盖率报告
+uv run pytest tests/ --cov=agent_cli --cov-report=term
+
 # 代码质量检查
 uv run ruff check src/ tests/
 uv run ruff format src/ tests/ --check
+
+# 类型检查（非阻塞）
+uv run mypy src/ || true
 ```
 
-**392 测试全部通过**（覆盖率 67%），覆盖：
-- 数据模型 (9) · Provider (53) · Agent Loop (5) · ToolRegistry (8)
-- Hooks (9) · Session (10) · Memory (16) · Compact (13)
-- Permission (18) · Planning (17) · Skills (13) · MCP (10)
+**563 测试全部通过**（覆盖率 87% • `--cov-fail-under=80`），覆盖：
+- 数据模型 (9) · Provider (61) · Agent Loop (7) · ToolRegistry (8)
+- Hooks (9) · Session (17) · Memory (30) · Compact (13)
+- Permission (18) · Planning (17) · Skills (20) · MCP (10)
 - Subagent (24) · 监控 (18) · Swarm (24) · 文件工具 (30)
 - Bash (22) · Web (12) · AgentTool (10) · Executor (6)
 - Renderer (16) · REPL (38) · SessionMemory (9)

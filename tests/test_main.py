@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from agent_cli.main import _create_provider, app
+from agent_cli.main import _build_skill_handler, _create_provider, app
 
 
 @pytest.fixture
@@ -182,6 +182,150 @@ class TestCreateProvider:
             from agent_cli.core.provider import MockProvider
 
             assert isinstance(provider, MockProvider)
+
+
+# ─── _build_skill_handler 测试 ──────────────────────────────────
+
+
+class TestBuildSkillHandler:
+    """_build_skill_handler 工厂函数测试。"""
+
+    def test_no_skills_returns_none(self, tmp_path: Path):
+        """无技能文件时返回 None。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                handler = _build_skill_handler(base_dir=".agent")
+                assert handler is None
+            finally:
+                os.chdir(orig_dir)
+
+    def test_with_skills_returns_handler(self, tmp_path: Path):
+        """有技能文件时返回可调用 handler。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                # 创建技能目录和技能文件
+                skill_dir = Path(td, ".agent", "skills")
+                skill_dir.mkdir(parents=True, exist_ok=True)
+                skill_file = skill_dir / "test-skill.md"
+                skill_file.write_text(
+                    "---\n"
+                    "name: test-skill\n"
+                    "description: testing skill\n"
+                    "triggers:\n"
+                    "  - test\n"
+                    "---\n"
+                    "\n"
+                    "# test skill content\n\nthis is a test.\n",
+                    encoding="utf-8",
+                )
+
+                handler = _build_skill_handler(base_dir=".agent")
+                assert callable(handler)
+            finally:
+                os.chdir(orig_dir)
+
+    def test_handler_injects_skill_on_match(self, tmp_path: Path):
+        """匹配触发词时 handler 注入技能内容到消息列表。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                skill_dir = Path(td, ".agent", "skills")
+                skill_dir.mkdir(parents=True, exist_ok=True)
+                skill_file = skill_dir / "test-skill.md"
+                skill_file.write_text(
+                    "---\n"
+                    "name: test-skill\n"
+                    "description: testing skill\n"
+                    "triggers:\n"
+                    "  - test\n"
+                    "---\n"
+                    "\n"
+                    "skill body\n",
+                    encoding="utf-8",
+                )
+
+                handler = _build_skill_handler(base_dir=".agent")
+                assert handler is not None
+
+                messages = [{"role": "user", "content": "run a test request"}]
+                handler(messages)
+
+                # verify skill was injected at the beginning
+                assert len(messages) == 2
+                assert messages[0]["role"] == "system"
+                assert "skill body" in messages[0]["content"]
+            finally:
+                os.chdir(orig_dir)
+
+    def test_handler_no_match_no_inject(self, tmp_path: Path):
+        """不匹配触发词时 handler 不修改消息列表。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                skill_dir = Path(td, ".agent", "skills")
+                skill_dir.mkdir(parents=True, exist_ok=True)
+                skill_file = skill_dir / "test-skill.md"
+                skill_file.write_text(
+                    "---\n"
+                    "name: test-skill\n"
+                    "description: testing skill\n"
+                    "triggers:\n"
+                    "  - test\n"
+                    "---\n"
+                    "\n"
+                    "skill body\n",
+                    encoding="utf-8",
+                )
+
+                handler = _build_skill_handler(base_dir=".agent")
+                assert handler is not None
+
+                messages = [{"role": "user", "content": "hello, how are you?"}]
+                handler(messages)
+
+                # 技能不匹配，消息列表不变
+                assert len(messages) == 1
+                assert messages[0]["role"] == "user"
+            finally:
+                os.chdir(orig_dir)
+
+    def test_handler_empty_messages(self, tmp_path: Path):
+        """空消息列表时 handler 不报错。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                skill_dir = Path(td, ".agent", "skills")
+                skill_dir.mkdir(parents=True, exist_ok=True)
+                skill_file = skill_dir / "test-skill.md"
+                skill_file.write_text(
+                    "---\n"
+                    "name: test-skill\n"
+                    "description: testing skill\n"
+                    "triggers:\n"
+                    "  - test\n"
+                    "---\n"
+                    "\n"
+                    "skill body\n",
+                    encoding="utf-8",
+                )
+
+                handler = _build_skill_handler(base_dir=".agent")
+                assert handler is not None
+
+                # 空列表不应报错
+                handler([])
+
+                # 无 user 消息也不应报错
+                handler([{"role": "system", "content": "你是助手"}])
+            finally:
+                os.chdir(orig_dir)
 
 
 # ─── permissions 命令 ────────────────────────────────────────────
