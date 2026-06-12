@@ -1,9 +1,10 @@
 # Agent-CLI — 轻量级个人助手
 
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue)]()
+[![PyPI version](https://img.shields.io/pypi/v/agent-cli)]()
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000)]()
 [![License MIT](https://img.shields.io/badge/license-MIT-green)]()
-[![Tests](https://img.shields.io/badge/tests-563%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-668%20passing-brightgreen)]()
 [![CI](https://github.com/Mrzhou3000/agent-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/Mrzhou3000/agent-cli/actions/workflows/ci.yml)
 
 > 集三大开源项目设计思想之大成的轻量级个人助手 Agent。
@@ -37,37 +38,44 @@
 ### 安装
 
 ```bash
-# 1. 克隆
+# 方式一：从 PyPI 安装（推荐）
+pip install agent-cli
+
+# 方式二：从源码安装
 git clone https://github.com/your-username/agent-cli.git
 cd agent-cli
-
-# 2. 安装依赖
 uv sync
+```
 
-# 3. 配置 API Key
+### 配置 API Key
+
+```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
 ### 运行
 
 ```bash
-# 命令行模式
-uv run agent-cli run "你好，请搜索项目中的 TODO 注释"
+# 命令行模式（pip 安装后直接用）
+agent-cli run "你好，请搜索项目中的 TODO 注释"
+
+# 从源码运行需加 uv run 前缀
+uv run agent-cli run "你好"
 
 # REPL 交互模式（支持 --resume 恢复会话）
-uv run agent-cli repl
+agent-cli repl
 
 # 恢复指定会话
-uv run agent-cli repl --resume sess_20260610_143022_abc123
+agent-cli repl --resume sess_20260610_143022_abc123
 
 # 详细输出模式
-uv run agent-cli run --verbose "分析代码质量"
+agent-cli run --verbose "分析代码质量"
 
 # JSON 输出模式
-uv run agent-cli run --json "查看系统状态"
+agent-cli run --json "查看系统状态"
 
 # 初始化项目配置
-uv run agent-cli init
+agent-cli init
 ```
 
 ### 模型切换（v0.2.0）
@@ -77,23 +85,23 @@ uv run agent-cli init
 ```bash
 # 使用 Claude（设置 ANTHROPIC_API_KEY 环境变量，或者 auto 自动检测）
 export ANTHROPIC_API_KEY=sk-ant-xxx
-uv run agent-cli run "分析代码" --provider anthropic
+agent-cli run "分析代码" --provider anthropic
 
 # 使用 DeepSeek（设置 COMPATIBLE_API_KEY 环境变量）
 export COMPATIBLE_API_KEY=sk-xxx
-uv run agent-cli run "写一个排序算法" --provider compatible
+agent-cli run "写一个排序算法" --provider compatible
 
 # auto 模式按优先级自动检测：ANTHROPIC_API_KEY > COMPATIBLE_API_KEY > Mock
-uv run agent-cli run "你好"        # 自动选择可用模型
+agent-cli run "你好"        # 自动选择可用模型
 
 # 显式指定 API key 和模型名称
-uv run agent-cli repl --provider compatible --api-key sk-xxx --model deepseek-chat
+agent-cli repl --provider compatible --api-key sk-xxx --model deepseek-chat
 
 # 使用其他兼容 API（如 OpenAI）
-uv run agent-cli repl --provider compatible --base-url https://api.openai.com/v1 --api-key sk-xxx
+agent-cli repl --provider compatible --base-url https://api.openai.com/v1 --api-key sk-xxx
 
 # 显式使用 Mock 模式（无需 API key）
-uv run agent-cli run "你好" --provider mock
+agent-cli run "你好" --provider mock
 ```
 
 ### 流式输出
@@ -102,10 +110,10 @@ uv run agent-cli run "你好" --provider mock
 
 ```bash
 # DeepSeek 流式输出
-uv run agent-cli run "讲个故事" --provider compatible --api-key sk-xxx
+agent-cli run "讲个故事" --provider compatible --api-key sk-xxx
 
 # Claude 流式输出（默认启用）
-uv run agent-cli run "讲个故事"
+agent-cli run "讲个故事"
 ```
 
 ---
@@ -309,7 +317,7 @@ uv run ruff format src/ tests/ --check
 uv run mypy src/ || true
 ```
 
-**563 测试全部通过**（覆盖率 87% • `--cov-fail-under=80`），覆盖：
+**668 测试全部通过**（覆盖率 87% • `--cov-fail-under=80`），覆盖：
 - 数据模型 (9) · Provider (61) · Agent Loop (7) · ToolRegistry (8)
 - Hooks (9) · Session (17) · Memory (30) · Compact (13)
 - Permission (18) · Planning (17) · Skills (20) · MCP (10)
