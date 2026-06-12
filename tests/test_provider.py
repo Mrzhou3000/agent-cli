@@ -28,8 +28,200 @@ from agent_cli.core.provider import (
     Response,
     ToolCall,
     Usage,
+    _convert_messages_to_openai,
+    _convert_tools_to_openai,
     _parse_response,
 )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 格式转换（Anthropic ↔ OpenAI）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestConvertToolsToOpenAI:
+    """_convert_tools_to_openai 测试。"""
+
+    def test_anthropic_format(self):
+        """Anthropic 格式应转换为 OpenAI 格式。"""
+        tools = [
+            {"name": "bash", "description": "Run a command", "input_schema": {"type": "object"}},
+        ]
+        result = _convert_tools_to_openai(tools)
+        assert len(result) == 1
+        assert result[0]["type"] == "function"
+        assert result[0]["function"]["name"] == "bash"
+        assert result[0]["function"]["description"] == "Run a command"
+        assert result[0]["function"]["parameters"] == {"type": "object"}
+
+    def test_openai_format_passthrough(self):
+        """已是 OpenAI 格式的工具应直接透传。"""
+        tools = [
+            {"type": "function", "function": {"name": "bash", "description": "Run"}},
+        ]
+        result = _convert_tools_to_openai(tools)
+        assert result == tools
+
+    def test_multiple_tools(self):
+        """多个工具全部转换。"""
+        tools = [
+            {"name": "bash", "description": "Run", "input_schema": {}},
+            {"name": "read", "description": "Read", "input_schema": {}},
+        ]
+        result = _convert_tools_to_openai(tools)
+        assert len(result) == 2
+        assert result[0]["function"]["name"] == "bash"
+        assert result[1]["function"]["name"] == "read"
+
+    def test_empty_list(self):
+        """空列表返回空列表。"""
+        assert _convert_tools_to_openai([]) == []
+
+    def test_missing_fields(self):
+        """缺少字段的工具不应报错。"""
+        tools = [{"name": "bash"}]  # 没有 description 和 input_schema
+        result = _convert_tools_to_openai(tools)
+        assert result[0]["function"]["description"] == ""
+        assert result[0]["function"]["parameters"] == {}
+
+
+class TestConvertMessagesToOpenAI:
+    """_convert_messages_to_openai 测试。"""
+
+    def test_string_content_passthrough(self):
+        """content 为字符串的消息直接透传。"""
+        msgs = [{"role": "user", "content": "你好"}]
+        result = _convert_messages_to_openai(msgs)
+        assert result == msgs
+
+    def test_system_message_passthrough(self):
+        """system 角色字符串内容透传。"""
+        msgs = [{"role": "system", "content": "你是助手"}]
+        result = _convert_messages_to_openai(msgs)
+        assert result == msgs
+
+    def test_text_block(self):
+        """文本块应合并为字符串。"""
+        msgs = [{"role": "assistant", "content": [{"type": "text", "text": "你好世界"}]}]
+        result = _convert_messages_to_openai(msgs)
+        assert result[0]["content"] == "你好世界"
+        assert "tool_calls" not in result[0]
+
+    def test_multiple_text_blocks(self):
+        """多个文本块应拼接。"""
+        msgs = [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "第一段"},
+                    {"type": "text", "text": "第二段"},
+                ],
+            }
+        ]
+        result = _convert_messages_to_openai(msgs)
+        assert result[0]["content"] == "第一段第二段"
+
+    def test_tool_use_block(self):
+        """tool_use 块应转换为 tool_calls 字段。"""
+        msgs = [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "执行中"},
+                    {
+                        "type": "tool_use",
+                        "id": "call_001",
+                        "name": "bash",
+                        "input": {"command": "ls"},
+                    },
+                ],
+            }
+        ]
+        result = _convert_messages_to_openai(msgs)
+        assert result[0]["content"] == "执行中"
+        assert "tool_calls" in result[0]
+        assert len(result[0]["tool_calls"]) == 1
+        assert result[0]["tool_calls"][0]["id"] == "call_001"
+        assert result[0]["tool_calls"][0]["type"] == "function"
+        assert result[0]["tool_calls"][0]["function"]["name"] == "bash"
+
+    def test_tool_result_block(self):
+        """tool_result 块应转换为 OpenAI tool role。"""
+        msgs = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "call_001",
+                        "content": "ls 输出结果",
+                    }
+                ],
+            }
+        ]
+        result = _convert_messages_to_openai(msgs)
+        assert result[0]["role"] == "tool"
+        assert result[0]["tool_call_id"] == "call_001"
+        assert result[0]["content"] == "ls 输出结果"
+
+    def test_tool_result_dict_content(self):
+        """tool_result 的 content 是字典时，应序列化为 JSON 字符串。"""
+        msgs = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "call_001",
+                        "content": {"files": ["a.txt", "b.txt"]},
+                    }
+                ],
+            }
+        ]
+        result = _convert_messages_to_openai(msgs)
+        assert '"files"' in result[0]["content"]
+        assert "a.txt" in result[0]["content"]
+
+    def test_mixed_blocks(self):
+        """同时包含 text + tool_use + tool_result 的混合消息。"""
+        msgs = [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "先看结果"},
+                    {
+                        "type": "tool_use",
+                        "id": "call_1",
+                        "name": "bash",
+                        "input": {"command": "ls"},
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "call_1",
+                        "content": "完成",
+                    }
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "最终回复"},
+                ],
+            },
+        ]
+        result = _convert_messages_to_openai(msgs)
+        assert len(result) == 3
+        assert result[0]["role"] == "assistant"
+        assert "tool_calls" in result[0]
+        assert result[1]["role"] == "tool"
+        assert result[1]["tool_call_id"] == "call_1"
+        assert result[2]["role"] == "assistant"
+        assert result[2]["content"] == "最终回复"
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 数据模型

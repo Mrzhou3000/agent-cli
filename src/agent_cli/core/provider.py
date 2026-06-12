@@ -426,10 +426,105 @@ class AnthropicProvider(IModelProvider):
 # ─── CompatibleProvider ─────────────────────────────────────────
 
 
+# ─── Anthropic ↔ OpenAI 格式转换 ─────────────────────────────
+
+
+def _convert_tools_to_openai(tools: list[dict]) -> list[dict]:
+    """将 Anthropic 格式工具定义转换为 OpenAI 格式。
+
+    Anthropic: {name, description, input_schema}
+    OpenAI:    {type:function, function:{name, description, parameters}}
+    """
+    result = []
+    for tool in tools:
+        # 已经是 OpenAI 格式 — 透传
+        if tool.get("type") == "function":
+            result.append(tool)
+            continue
+        # Anthropic 格式 — 转换
+        result.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.get("name", ""),
+                    "description": tool.get("description", ""),
+                    "parameters": tool.get("input_schema", {}),
+                },
+            }
+        )
+    return result
+
+
+def _convert_messages_to_openai(messages: list[dict]) -> list[dict]:
+    """将 Anthropic 格式消息列表转换为 OpenAI 格式。
+
+    关键差异：
+      - 内容块列表 → 字符串 + tool_calls 字段
+      - tool_use 块   → role=assistant 的 tool_calls 数组
+      - tool_result 块 → role=tool 的消息
+    """
+    converted: list[dict] = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content")
+
+        # content 已是字符串 — 无需转换
+        if isinstance(content, str):
+            converted.append(msg)
+            continue
+
+        # content 是列表（Anthropic 内容块）— 需转换
+        if isinstance(content, list):
+            new_msg: dict[str, Any] = {"role": role}
+            text_parts: list[str] = []
+            tool_calls: list[dict] = []
+
+            for block in content:
+                btype = block.get("type", "")
+                if btype == "text":
+                    text_parts.append(block.get("text", ""))
+                elif btype == "tool_use":
+                    tool_calls.append(
+                        {
+                            "id": block["id"],
+                            "type": "function",
+                            "function": {
+                                "name": block["name"],
+                                "arguments": json.dumps(block["input"], ensure_ascii=False),
+                            },
+                        }
+                    )
+                elif btype == "tool_result":
+                    # tool_result → OpenAl "tool" role
+                    new_msg["role"] = "tool"
+                    new_msg["tool_call_id"] = block.get("tool_use_id", "")
+                    raw = block.get("content", "")
+                    if isinstance(raw, dict | list):
+                        new_msg["content"] = json.dumps(raw, ensure_ascii=False)
+                    else:
+                        new_msg["content"] = str(raw)
+                    text_parts = []  # tool 角色不混 text
+                    tool_calls = []
+
+            if new_msg["role"] != "tool":
+                new_msg["content"] = "".join(text_parts) or None
+                if tool_calls:
+                    new_msg["tool_calls"] = tool_calls
+
+            converted.append(new_msg)
+            continue
+
+        # 兜底 — 原样传递
+        converted.append(msg)
+
+    return converted
+
+
 class CompatibleProvider(IModelProvider):
     """兼容 API 实现（如 DeepSeek、OpenAI 兼容模式）。
 
     通过指定 base_url 可适配任意兼容 OpenAI API 格式的服务。
+    自动将 Anthropic 格式的消息和工具转换为 OpenAI 格式。
     """
 
     def __init__(
@@ -467,18 +562,24 @@ class CompatibleProvider(IModelProvider):
         return self._client
 
     def invoke(self, messages: list[dict], tools: list[dict] | None = None) -> Response:
-        """调用兼容 API（带指数退避重试）。"""
+        """调用兼容 API（带指数退避重试）。
+
+        自动将 Anthropic 格式的消息和工具转换为 OpenAI 格式。
+        """
         client = self._get_client()
+
+        # 格式转换：Anthropic → OpenAI
+        openai_messages = _convert_messages_to_openai(messages)
+        openai_tools = _convert_tools_to_openai(tools) if tools else None
 
         body: dict[str, Any] = {
             "model": self.model,
             "max_tokens": self.max_tokens,
-            "messages": messages,
+            "messages": openai_messages,
         }
 
-        # 简化 tools → functions 映射
-        if tools:
-            body["tools"] = tools
+        if openai_tools:
+            body["tools"] = openai_tools
 
         def _do_request() -> httpx.Response:
             """执行实际 HTTP 请求（可被重试）。"""
@@ -538,17 +639,21 @@ class CompatibleProvider(IModelProvider):
 
         使用 httpx 的流式传输逐块产出文本，
         支持 OpenAI 兼容的 SSE 格式（如 DeepSeek、OpenAI）。
+        自动将 Anthropic 格式的消息和工具转换为 OpenAI 格式。
         """
         client = self._get_client()
+
+        openai_messages = _convert_messages_to_openai(messages)
+        openai_tools = _convert_tools_to_openai(tools) if tools else None
 
         body: dict[str, Any] = {
             "model": self.model,
             "max_tokens": self.max_tokens,
-            "messages": messages,
+            "messages": openai_messages,
             "stream": True,
         }
-        if tools:
-            body["tools"] = tools
+        if openai_tools:
+            body["tools"] = openai_tools
 
         try:
             with client.stream("POST", "/chat/completions", json=body) as resp:
