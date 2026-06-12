@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.1] — 2026-06-12
+
+### Added
+- **PyPI 发布**：`agent-cli-Mrzhou300` 成功发布到 PyPI（`pip install agent-cli-Mrzhou300`）
+- **CD workflow 修复**：Trusted Publisher + OIDC 认证流程调试完成
+- **文档更新**：版本号同步至 v0.2.1，包名更新为 `agent-cli-Mrzhou300`
+
+### Changed
+- 项目名从 `agent-harness-cli` 重命名为 `agent-cli-Mrzhou300`（解决 PyPI 名称冲突）
+- README / 架构文档版本同步
+
+### Fixed
+- `pypa/gh-action-pypi-publish` 403 Forbidden 问题（Trusted Publisher 项目名匹配修复）
+
 ## [0.2.0] — 2026-06-11
 
 ### Added
