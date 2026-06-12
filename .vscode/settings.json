@@ -1,0 +1,7 @@
+{
+  "github-actions.autoShowWorkflowFileContent": true,
+  "github-actions.workflowPath": ".github/workflows",
+  "yaml.schemas": {
+    "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml"
+  }
+}
