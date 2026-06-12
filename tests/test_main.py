@@ -345,13 +345,16 @@ class TestInitInteractive:
             captured_config.update(config)
             return path or ".agent/config.json"
 
-        with patch("agent_cli.main.typer.prompt") as mock_prompt:
+        with (
+            patch("agent_cli.main.typer.prompt") as mock_prompt,
+            patch("agent_cli.main.save_config", side_effect=_fake_save_config),
+            # load_config 在函数体内重新导入，patch config 模块级别即可
+            patch("agent_cli.config.load_config", return_value={}),
+        ):
             mock_prompt.side_effect = list(side_effect)
-            # _run_init_wizard 内部 import save_config from agent_cli.config
-            with patch("agent_cli.config.save_config", side_effect=_fake_save_config):
-                from agent_cli.main import _run_init_wizard
+            from agent_cli.main import _run_init_wizard
 
-                _run_init_wizard()
+            _run_init_wizard()
 
         return captured_config
 

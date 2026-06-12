@@ -41,6 +41,21 @@ repos:
       # ruff format: 代码格式化
       - id: ruff-format
 
+  # ── pytest: 测试 ──────────────────────────────────────────
+  # 确保所有测试通过后才允许提交
+  # 与 CI 使用相同的命令，前置发现问题
+  - repo: local
+    hooks:
+      - id: pytest
+        name: 🧪 pytest
+        description: "运行所有测试，阻止提交失败的测试"
+        entry: uv run pytest tests/ -x --tb=short -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        # 超时 120 秒——本地通常比 CI 快
+        args: []
+
   # ── mypy: 类型检查 ───────────────────────────────────────────
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.14.1
