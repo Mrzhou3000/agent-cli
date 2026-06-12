@@ -42,13 +42,15 @@ jobs:
       # actions/checkout 是 GitHub 官方提供的"动作"（Action）
       # 相当于 git clone 你的仓库到 CI 服务器上
       - name: "📥 拉取代码"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        # v6 使用 Node 24，GitHub 自 2026-06-02 起默认运行 Node 24
+        # 参考: https://github.blog/changelog/2026-01-20-github-actions-node-24
 
       # Step 2: 安装 Python
       # actions/setup-python 是 GitHub 官方 Action
       # 在 Ubuntu 上安装指定版本的 Python
       - name: "🐍 安装 Python ${{ env.PYTHON_VERSION }}"
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
 
@@ -56,7 +58,7 @@ jobs:
       # astral-sh/setup-uv 是 uv 官方提供的 Action
       # ⚠️ 注意：这个项目用 uv 管理依赖，不是 pip
       - name: "📦 安装 uv"
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
 
       # Step 4: 调试步骤 — 确认当前目录和文件结构
       # 如果 CI 报错说找不到文件，这个步骤会显示当前目录的内容
@@ -106,11 +108,11 @@ jobs:
     needs: [test]
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
 
       - name: "📂 查看工作目录"
         run: |
