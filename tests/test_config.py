@@ -13,6 +13,7 @@ from agent_cli.config import (
     _get_env_provider,
     load_config,
     merge_config,
+    save_config,
     save_default_config,
 )
 
@@ -95,6 +96,43 @@ class TestSaveDefaultConfig:
             assert data["provider"]["default"] == "auto"
             assert data["logging"]["format"] == "text"
             assert data["retry"]["max_retries"] == 3
+
+
+class TestSaveConfig:
+    """save_config 测试。"""
+
+    def test_save_custom_config(self):
+        """保存自定义配置。"""
+        with tempfile.TemporaryDirectory() as td:
+            cfg_path = Path(td) / "my_config.json"
+            custom = {
+                "provider": {
+                    "default": "anthropic",
+                    "model": "claude-opus-4-20250514",
+                    "api_key": "sk-test",
+                },
+            }
+            saved = save_config(custom, str(cfg_path))
+            assert Path(saved).exists()
+            data = json.loads(Path(saved).read_text(encoding="utf-8"))
+            assert data["provider"]["default"] == "anthropic"
+            assert data["provider"]["api_key"] == "sk-test"
+
+    def test_save_cleans_none(self):
+        """保存时自动移除 None 值。"""
+        with tempfile.TemporaryDirectory() as td:
+            cfg_path = Path(td) / "clean.json"
+            custom = {
+                "provider": {
+                    "default": "mock",
+                    "model": None,
+                    "api_key": None,
+                },
+            }
+            save_config(custom, str(cfg_path))
+            data = json.loads(Path(cfg_path).read_text(encoding="utf-8"))
+            assert "model" not in data["provider"]
+            assert "api_key" not in data["provider"]
 
 
 class TestDeepMerge:

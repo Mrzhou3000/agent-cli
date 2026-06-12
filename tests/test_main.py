@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -258,7 +259,164 @@ class TestCreateProvider:
             assert isinstance(provider, MockProvider)
 
 
-# ─── _build_skill_handler 测试 ──────────────────────────────────
+# ─── _create_provider 配置注入测试 ───────────────────────────────
+
+
+class TestCreateProviderWithConfig:
+    """_create_provider 从配置 dict 读取参数。"""
+
+    def test_config_provides_model(self):
+        """config 提供 model 和 api_key。"""
+        cfg = {"provider": {"model": "claude-opus-4-20250514", "api_key": "sk-from-config"}}
+        with patch.dict(os.environ, {}, clear=True):
+            provider = _create_provider(provider="anthropic", config=cfg)
+            from agent_cli.core.provider import AnthropicProvider
+
+            assert isinstance(provider, AnthropicProvider)
+            assert provider.model == "claude-opus-4-20250514"
+
+    def test_cli_arg_overrides_config(self):
+        """CLI 参数优先于配置文件。"""
+        cfg = {"provider": {"model": "from-config", "api_key": "sk-config"}}
+        with patch.dict(os.environ, {}, clear=True):
+            provider = _create_provider(
+                provider="anthropic",
+                model="from-cli",
+                api_key="sk-cli",
+                config=cfg,
+            )
+            assert provider.model == "from-cli"
+
+    def test_config_fallback_to_env(self):
+        """config 不提供 api_key 时回退到环境变量。"""
+        cfg = {"provider": {"model": "deepseek-chat"}}
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "sk-env"}):
+            provider = _create_provider(provider="deepseek", config=cfg)
+            assert provider is not None
+
+    def test_auto_provider_from_config(self):
+        """auto 模式从 config 读取 default provider。"""
+        cfg = {"provider": {"default": "mock", "api_key": "sk-test"}}
+        with patch.dict(os.environ, {}, clear=True):
+            provider = _create_provider(provider="auto", config=cfg)
+            from agent_cli.core.provider import MockProvider
+
+            assert isinstance(provider, MockProvider)
+
+    def test_config_base_url(self):
+        """compatible 从 config 读取 base_url。"""
+        cfg = {
+            "provider": {
+                "default": "compatible",
+                "base_url": "https://custom.api.com/v1",
+                "api_key": "sk-test",
+            }
+        }
+        with patch.dict(os.environ, {}, clear=True):
+            provider = _create_provider(provider="compatible", config=cfg)
+            from agent_cli.core.provider import CompatibleProvider
+
+            assert isinstance(provider, CompatibleProvider)
+            assert provider.base_url == "https://custom.api.com/v1"
+
+
+# ─── init 交互式引导测试 ─────────────────────────────────────────
+
+
+class TestInitInteractive:
+    """agent-cli init 交互式引导测试。
+
+    直接调用 _run_init_wizard() 并模拟 typer.prompt 来测试引导逻辑。
+    """
+
+    @staticmethod
+    def _run_wizard_with_input(side_effect, expect_api_key=True):
+        """调用 _run_init_wizard，将 typer.prompt 替换为 side_effect。
+
+        Args:
+            side_effect: 依次返回的值列表，顺序对应 typer.prompt 的调用顺序。
+            expect_api_key: 若为 True，side_effect 必须包含 API Key 值
+                           （Provider != mock 时使用）。
+        """
+        captured_config = {}
+
+        def _fake_save_config(config, path=None):
+            captured_config.clear()
+            captured_config.update(config)
+            return path or ".agent/config.json"
+
+        with patch("agent_cli.main.typer.prompt") as mock_prompt:
+            mock_prompt.side_effect = list(side_effect)
+            # _run_init_wizard 内部 import save_config from agent_cli.config
+            with patch("agent_cli.config.save_config", side_effect=_fake_save_config):
+                from agent_cli.main import _run_init_wizard
+
+                _run_init_wizard()
+
+        return captured_config
+
+    def test_wizard_anthropic(self):
+        """向导选择 Anthropic + 填写 API Key + 选择模型。"""
+        config = self._run_wizard_with_input(
+            ["1", "sk-test-key", "1"],
+        )
+        assert config["provider"]["default"] == "anthropic"
+        assert "claude-sonnet-4" in config["provider"]["model"]
+        assert config["provider"]["api_key"] == "sk-test-key"
+
+    def test_wizard_deepseek(self):
+        """向导选择 DeepSeek。"""
+        config = self._run_wizard_with_input(
+            ["2", "sk-deep-test", "1"],
+        )
+        assert config["provider"]["default"] == "deepseek"
+        assert config["provider"]["model"] == "deepseek-chat"
+        assert config["provider"]["api_key"] == "sk-deep-test"
+
+    def test_wizard_custom_model(self):
+        """向导选择自定义模型名。"""
+        config = self._run_wizard_with_input(
+            ["1", "", "4", "my-custom-model"],
+        )
+        assert config["provider"]["model"] == "my-custom-model"
+        assert "api_key" not in config["provider"]
+
+    def test_wizard_empty_api_key(self):
+        """向导中 API Key 留空不写入配置。"""
+        config = self._run_wizard_with_input(
+            ["1", "", "1"],
+        )
+        assert "api_key" not in config["provider"]
+
+    def test_wizard_mock(self):
+        """向导选择 Mock（无 API Key 提示）。"""
+        config = self._run_wizard_with_input(
+            ["5", "deepseek-chat"],
+        )
+        assert config["provider"]["default"] == "mock"
+
+    def test_wizard_compatible(self):
+        """向导选择 Compatible + 输入 base_url。"""
+        config = self._run_wizard_with_input(
+            ["4", "sk-comp-test", "1", "https://custom.api.com/v1"],
+        )
+        assert config["provider"]["default"] == "compatible"
+        assert config["provider"]["base_url"] == "https://custom.api.com/v1"
+        assert config["provider"]["api_key"] == "sk-comp-test"
+
+    def test_init_non_interactive_flag(self, runner: CliRunner):
+        """--non-interactive 跳过向导，使用默认配置。"""
+        with tempfile.TemporaryDirectory() as td:
+            orig_dir = os.getcwd()
+            os.chdir(td)
+            try:
+                result = runner.invoke(app, ["init", "--non-interactive"])
+                assert result.exit_code == 0
+                cfg = json.loads(Path(td, ".agent", "config.json").read_text(encoding="utf-8"))
+                assert cfg["provider"]["default"] == "auto"
+                assert "api_key" not in cfg["provider"]
+            finally:
+                os.chdir(orig_dir)
 
 
 class TestBuildSkillHandler:

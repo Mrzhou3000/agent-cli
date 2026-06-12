@@ -133,12 +133,46 @@ def _get_env_provider(prefix: str = "") -> dict:
     return env
 
 
-def save_default_config(path: str | None = None) -> str:
-    """保存默认配置文件。"""
-    config_path = Path(get_config_path(path))
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(
-        json.dumps(DEFAULT_CONFIG, indent=2, ensure_ascii=False) + "\n",
+def save_config(config: dict[str, Any], path: str | None = None) -> str:
+    """保存配置到 JSON 文件。
+
+    Args:
+        config: 要保存的配置字典。
+        path: 配置文件路径。默认使用 .agent/config.json。
+
+    Returns:
+        保存的配置文件路径。
+    """
+    from copy import deepcopy
+
+    cfg_path = Path(get_config_path(path))
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 清理空值，避免写入 null
+    cleaned = _clean_none(deepcopy(config))
+
+    cfg_path.write_text(
+        json.dumps(cleaned, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    return str(config_path)
+    return str(cfg_path)
+
+
+def _clean_none(d: dict[str, Any]) -> dict[str, Any]:
+    """递归删除字典中的 None 值。"""
+    result = {}
+    for k, v in d.items():
+        if v is None:
+            continue
+        if isinstance(v, dict):
+            sub = _clean_none(v)
+            if sub:
+                result[k] = sub
+        else:
+            result[k] = v
+    return result
+
+
+def save_default_config(path: str | None = None) -> str:
+    """保存默认配置文件。"""
+    return save_config(DEFAULT_CONFIG, path=path)

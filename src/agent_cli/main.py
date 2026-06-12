@@ -24,7 +24,7 @@ from typer import Argument, Option
 
 from agent_cli import __version__
 from agent_cli.compact.pipeline import CompactPipeline
-from agent_cli.config import load_config, save_default_config
+from agent_cli.config import load_config, save_config, save_default_config
 from agent_cli.core.loop import AgentLoop
 from agent_cli.core.provider import (
     AnthropicProvider,
@@ -143,8 +143,15 @@ def _create_provider(
     api_key: str | None = None,
     base_url: str | None = None,
     max_tokens: int = 4096,
+    config: dict | None = None,
 ) -> IModelProvider:
-    """根据参数和自动检测创建合适的 Provider。
+    """根据参数、配置文件和自动检测创建合适的 Provider。
+
+    优先级（从高到低）:
+      1. 显式参数（CLI 参数）
+      2. 配置文件（.agent/config.json）
+      3. 环境变量
+      4. 各 Provider 的默认值
 
     策略:
       auto      → 环境变量检测: ANTHROPIC_API_KEY > DEEPSEEK_API_KEY >
@@ -155,6 +162,18 @@ def _create_provider(
       compatible→ CompatibleProvider 通用（需 --base-url 和 --api-key）
       mock      → MockProvider（不需要 API key）
     """
+    # 从配置文件读取未显式提供的值
+    if config:
+        pcfg = config.get("provider", {})
+        if not model:
+            model = pcfg.get("model", "")
+        if api_key is None:
+            api_key = pcfg.get("api_key")
+        if base_url is None:
+            base_url = pcfg.get("base_url")
+        if not provider or provider == "auto":
+            provider = pcfg.get("default", "auto")
+
     ptype = provider.lower().strip()
 
     if ptype == "mock":
@@ -299,6 +318,7 @@ def run(
         model=model,
         api_key=api_key,
         base_url=base_url,
+        config=cfg,
     )
 
     compact_pipe = CompactPipeline(max_tokens=max_tokens, provider=provider) if compact else None
@@ -399,6 +419,9 @@ def repl(
     _setup_logging(verbose=verbose)
     work_dir = allowed_dir or os.getcwd()
 
+    # 加载配置文件
+    cfg = load_config()
+
     # 初始化组件
     registry = _create_registry(allowed_dir=work_dir)
     session_store = SessionStore(base_dir=".agent")
@@ -411,6 +434,7 @@ def repl(
         model=model,
         api_key=api_key,
         base_url=base_url,
+        config=cfg,
     )
 
     compact_pipe = CompactPipeline(max_tokens=max_tokens, provider=provider) if compact else None
@@ -434,13 +458,193 @@ def repl(
     repl_session.run()
 
 
+# ─── 初始化向导 ───────────────────────────────────────────────────
+
+_INIT_PROVIDER_OPTIONS: list[tuple[str, str]] = [
+    ("anthropic", "Anthropic (Claude) — 推荐"),
+    ("deepseek", "DeepSeek — 深度求索"),
+    ("openai", "OpenAI (GPT)"),
+    ("compatible", "Compatible — 兼容 OpenAI 的任意 API"),
+    ("mock", "Mock — 仅测试使用，无需 API Key"),
+]
+
+_INIT_MODEL_OPTIONS: dict[str, list[tuple[str, str]]] = {
+    "anthropic": [
+        ("claude-sonnet-4-20250514", "推荐 — 最佳平衡"),
+        ("claude-opus-4-20250514", "最强能力"),
+        ("claude-haiku-3-5-20241022", "快速轻量"),
+    ],
+    "deepseek": [
+        ("deepseek-chat", "推荐 — V3 对话模型"),
+        ("deepseek-reasoner", "R1 推理模型"),
+    ],
+    "openai": [
+        ("gpt-4o", "推荐 — 最强多模态"),
+        ("gpt-4o-mini", "轻量快速"),
+        ("o3-mini", "推理优化"),
+        ("gpt-4-turbo", "传统 GPT-4"),
+    ],
+    "compatible": [
+        ("deepseek-chat", "推荐 — DeepSeek V3"),
+    ],
+}
+
+_INIT_ENV_KEY_MAP: dict[str, str] = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "compatible": "COMPATIBLE_API_KEY",
+}
+
+
+def _is_interactive() -> bool:
+    """判断当前是否在交互式终端中运行。"""
+    return sys.stdin.isatty()
+
+
+def _prompt_choices(
+    title: str,
+    options: list[tuple[str, str]],
+    default: int = 0,
+) -> str:
+    """显示编号菜单并让用户选择一项。
+
+    Args:
+        title: 提示标题。
+        options: (值, 描述) 列表。
+        default: 默认选项索引（0-based）。
+
+    Returns:
+        选中的值。
+    """
+    print(f"\n{title}")
+    for i, (_, desc) in enumerate(options, 1):
+        marker = " [默认]" if i - 1 == default else ""
+        print(f"  {i}. {desc}{marker}")
+    while True:
+        raw = typer.prompt("请输入编号", default=str(default + 1))
+        try:
+            idx = int(raw.strip()) - 1
+            if 0 <= idx < len(options):
+                return options[idx][0]
+        except (ValueError, IndexError):
+            pass
+        print(f"  无效选择，请输入 1-{len(options)} 之间的数字。")
+
+
+def _run_init_wizard() -> None:
+    """运行交互式初始化向导，引导用户选择 Provider、API Key 和模型。"""
+
+    from agent_cli.config import DEFAULT_CONFIG, load_config
+
+    print("\n" + "=" * 54)
+    print("  Agent-CLI 初始化向导")
+    print("=" * 54)
+    print()
+    print("  本向导将引导你完成 AI Provider 的配置。")
+    print("  你也可以随时通过命令行参数 --provider / --model / --api-key")
+    print("  或环境变量来覆盖这里的设置。")
+    print()
+
+    # ── 1. Provider 选择 ──────────────────────────────────────────
+    provider_key = _prompt_choices(
+        "请选择 AI Provider（使用 ↑↓ 数字键选择）:",
+        _INIT_PROVIDER_OPTIONS,
+        default=0,
+    )
+    provider_name = dict(_INIT_PROVIDER_OPTIONS).get(provider_key, provider_key)
+    print(f"  已选择: {provider_name}")
+
+    # ── 2. API Key ────────────────────────────────────────────────
+    api_key: str | None = None
+    if provider_key != "mock":
+        env_var = _INIT_ENV_KEY_MAP.get(provider_key, "API_KEY")
+        env_set = bool(os.environ.get(env_var))
+        env_hint = f" (环境变量 {env_var} 已设置)" if env_set else ""
+
+        print()
+        # 不使用 hide_input=True：Windows 部分终端（Git Bash/MSYS2 等）
+        # 的 getpass 无法正常读取键盘，用户将完全无法输入。
+        # 明文输入虽降低隐蔽性，可通过环境变量保障安全。
+        key_input = typer.prompt(
+            f"请输入 API Key (明文){env_hint}\n  留空则使用环境变量或已有配置",
+            default="",
+        )
+        api_key = key_input.strip() or None
+        if api_key:
+            print("  [ok] API Key 已记录")
+        elif env_set:
+            print(f"  [ok] 将使用环境变量 {env_var}")
+        else:
+            print("  [warn] 未设置 API Key，运行时需通过 --api-key 或环境变量提供")
+
+    # ── 3. 模型选择 ───────────────────────────────────────────────
+    model_options = _INIT_MODEL_OPTIONS.get(provider_key)
+    model: str = ""
+    if model_options:
+        choices: list[tuple[str, str]] = model_options + [("__custom__", "手动输入自定义模型名")]
+        model_value = _prompt_choices("请选择模型:", choices, default=0)
+        model = typer.prompt("请输入自定义模型名") if model_value == "__custom__" else model_value
+    else:
+        model = typer.prompt("请输入模型名", default="deepseek-chat")
+    print(f"  已选择模型: {model}")
+
+    # ── 4. Base URL（Compatible 特有） ────────────────────────────
+    base_url: str | None = None
+    if provider_key == "compatible":
+        print()
+        base_url_input = typer.prompt(
+            "请输入 API 基础 URL",
+            default="https://api.deepseek.com/v1",
+        )
+        base_url = base_url_input.strip() or None
+
+    # ── 5. 保存配置 ───────────────────────────────────────────────
+    existing = load_config()
+    if not existing:
+        from copy import deepcopy
+
+        existing = deepcopy(DEFAULT_CONFIG)
+
+    existing["provider"]["default"] = provider_key
+    existing["provider"]["model"] = model
+    if api_key is not None:
+        existing["provider"]["api_key"] = api_key
+    else:
+        existing["provider"].pop("api_key", None)
+    if base_url is not None:
+        existing["provider"]["base_url"] = base_url
+
+    try:
+        cfg_path = save_config(existing)
+        print(f"\n  [ok] 配置已保存至 {cfg_path}")
+        print(f"  [ok] Provider: {provider_name}")
+        print(f"  [ok] Model: {model}")
+    except OSError as e:
+        logging.getLogger(__name__).warning("保存配置失败: %s", e)
+        print(f"\n  [warn] 配置保存失败: {e}")
+
+    # ── 6. 提示 ───────────────────────────────────────────────────
+    print()
+    print("  提示：你也可以通过环境变量配置 API Key:")
+    if provider_key != "mock":
+        env_var = _INIT_ENV_KEY_MAP.get(provider_key, "API_KEY")
+        print(f"    set {env_var}=your-api-key")
+    print("  或通过命令行参数覆盖:")
+    print(f'    agent-cli run "你的指令" --provider {provider_key} --model {model}')
+
+
 @app.command()
 def init(
     force: bool = Option(False, "--force", "-f", help="强制覆盖已有配置"),
+    non_interactive: bool = Option(
+        False, "--non-interactive/--interactive", "-n", help="跳过交互式引导，使用默认配置"
+    ),
 ):
     """初始化当前目录的 .agent/ 配置。
 
     创建运行所需的数据目录结构和默认配置文件。
+    在交互式终端中会启动初始化向导，引导选择 Provider 和模型。
     """
     base = Path(".agent")
     dirs = ["memory", "sessions", "logs", "archives", "plans", "skills"]
@@ -450,16 +654,11 @@ def init(
         "project.md": "# 项目记忆\n\n> 自动由 Agent 维护的项目知识文档。\n",
     }
 
-    # 创建默认配置文件
-    try:
-        cfg_path = save_default_config()
-        print(f"  [ok] 创建: {cfg_path}")
-    except OSError as e:
-        logging.getLogger(__name__).warning("保存默认配置失败: %s", e)
-
+    # 创建目录结构
     for d in dirs:
         (base / d).mkdir(parents=True, exist_ok=True)
 
+    # 创建数据文件（现有行为）
     for name, content in files.items():
         path = base / name
         if path.exists() and not force:
@@ -467,6 +666,16 @@ def init(
         else:
             path.write_text(content, encoding="utf-8")
             print(f"  [ok] 创建: {path}")
+
+    # 配置初始化：交互式 vs 默认
+    if not non_interactive and _is_interactive():
+        _run_init_wizard()
+    else:
+        try:
+            cfg_path = save_default_config()
+            print(f"  [ok] 创建: {cfg_path}")
+        except OSError as e:
+            logging.getLogger(__name__).warning("保存默认配置失败: %s", e)
 
     print("\n[ok] .agent/ 初始化完成！")
     print("   目录结构:")
@@ -989,11 +1198,13 @@ def swarm(
     """
     # 创建最小运行时
     registry = _create_registry()
+    cfg = load_config()
     provider = _create_provider(
         provider=provider_opt,
         model=model,
         api_key=api_key,
         base_url=base_url,
+        config=cfg,
     )
 
     loop = AgentLoop(
