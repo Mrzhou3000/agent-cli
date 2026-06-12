@@ -123,7 +123,10 @@ def _setup_logging(
 # ─── 工具初始化 ────────────────────────────────────────────────────
 
 
-def _create_registry(allowed_dir: str | None = None) -> ToolRegistry:
+def _create_registry(
+    allowed_dir: str | None = None,
+    provider: Any | None = None,
+) -> ToolRegistry:
     """创建并注册所有内置工具。"""
     registry = ToolRegistry()
     registry.register(BashTool(allowed_dir=allowed_dir))
@@ -133,7 +136,7 @@ def _create_registry(allowed_dir: str | None = None) -> ToolRegistry:
     registry.register(GlobTool(allowed_dir=allowed_dir))
     registry.register(GrepTool(allowed_dir=allowed_dir))
     registry.register(WebFetchTool())
-    registry.register(AgentTool())
+    registry.register(AgentTool(provider=provider, tools=registry))
     return registry
 
 
@@ -308,7 +311,6 @@ def run(
     logger.info("工作目录: %s", work_dir)
 
     # 初始化各组件
-    registry = _create_registry(allowed_dir=work_dir)
     session_store = SessionStore(base_dir=".agent")
     mem_mgr = MemoryManager(base_dir=".agent") if memory else None
 
@@ -320,6 +322,9 @@ def run(
         base_url=base_url,
         config=cfg,
     )
+
+    # 注册工具（Provider 就绪后才注册 AgentTool，使其支持子 Agent 调用）
+    registry = _create_registry(allowed_dir=work_dir, provider=provider)
 
     compact_pipe = CompactPipeline(max_tokens=max_tokens, provider=provider) if compact else None
 
@@ -423,7 +428,6 @@ def repl(
     cfg = load_config()
 
     # 初始化组件
-    registry = _create_registry(allowed_dir=work_dir)
     session_store = SessionStore(base_dir=".agent")
     mem_mgr = MemoryManager(base_dir=".agent") if memory else None
     metrics = MetricsCollector()
@@ -436,6 +440,9 @@ def repl(
         base_url=base_url,
         config=cfg,
     )
+
+    # 注册工具（Provider 就绪后才注册 AgentTool，使其支持子 Agent 调用）
+    registry = _create_registry(allowed_dir=work_dir, provider=provider)
 
     compact_pipe = CompactPipeline(max_tokens=max_tokens, provider=provider) if compact else None
 
@@ -1197,7 +1204,6 @@ def swarm(
       - 辩论 (--debate): 正反双方多轮辩论
     """
     # 创建最小运行时
-    registry = _create_registry()
     cfg = load_config()
     provider = _create_provider(
         provider=provider_opt,
@@ -1206,6 +1212,8 @@ def swarm(
         base_url=base_url,
         config=cfg,
     )
+
+    registry = _create_registry(provider=provider)
 
     loop = AgentLoop(
         provider=provider,

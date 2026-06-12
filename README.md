@@ -8,7 +8,11 @@
 [![CI](https://github.com/Mrzhou3000/agent-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/Mrzhou3000/agent-cli/actions/workflows/ci.yml)
 
 > 集三大开源项目设计思想之大成的轻量级个人助手 Agent。
-> 融合 [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code)、[14days-build-claude-code-cli](https://github.com/bozhouDev/14days-build-claude-code-cli)、[claude-code-complete-guide_v2](https://github.com/bcefghj/claude-code-complete-guide_v2) 的设计精华。
+> 融合 [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code)、[14days-build-claude-code-cli](https://github.com/bozhouDev/14days-build-claude-code-cli)、[claude-code-complete-guide_v2](https://github.com/bcefghj/claude-code-complete-guide-v2) 的设计精华。
+
+<p align="center">
+  <img src="docs/demo.png" alt="Agent-CLI demo" width="85%">
+</p>
 
 ---
 
@@ -42,7 +46,7 @@
 pip install agent-cli-Mrzhou300
 
 # 方式二：从源码安装
-git clone https://github.com/your-username/agent-cli.git
+git clone https://github.com/Mrzhou3000/agent-cli.git
 cd agent-cli
 uv sync
 ```

@@ -32,3 +32,6 @@ Thumbs.db
 # 虚拟环境
 .venv/
 venv/
+
+# 求职辅助文档（不上传 Git）
+docs/career/
