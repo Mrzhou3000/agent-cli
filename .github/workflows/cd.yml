@@ -63,7 +63,8 @@ jobs:
       #    - 工作流名称: cd.yml（就是这个文件）
       # 3. 完成！以后每次打 tag 就自动发布了
       - name: "🚀 发布到 PyPI"
-        uses: pypa/gh-action-pypi-publish@release/v1
+        # 固定到 v1.14.0 而不是 release/v1，避免缓存问题导致 OIDC 失败
+        uses: pypa/gh-action-pypi-publish@v1.14.0
 
       # ── 步骤 C: 在 GitHub 上创建 Release ──────────────────────────────────
       # 这样在 GitHub 仓库的 Releases 页面能看到发布记录
