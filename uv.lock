@@ -7,7 +7,7 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "agent-harness-cli"
+name = "agent-cli-mrzhou300"
 version = "0.2.0"
 source = { editable = "." }
 dependencies = [

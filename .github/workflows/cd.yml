@@ -57,7 +57,7 @@ jobs:
       # 💡 前置操作（只需做一次）：
       # 1. 登录 https://pypi.org/manage/account/publishing/
       # 2. 添加一个"可信发布者"（Trusted Publisher）
-      #    - PyPI 项目名: agent-harness-cli（和 pyproject.toml 里一致）
+      #    - PyPI 项目名: agent-cli-Mrzhou300（和 pyproject.toml 里一致）
       #    - GitHub 用户名: <你的 GitHub 用户名>
       #    - GitHub 仓库名: agent-cli
       #    - 工作流名称: cd.yml（就是这个文件）

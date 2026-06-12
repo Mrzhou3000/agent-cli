@@ -1,7 +1,7 @@
 # Agent-CLI — 轻量级个人助手
 
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue)]()
-[![PyPI version](https://img.shields.io/pypi/v/agent-harness-cli)]()
+[![PyPI version](https://img.shields.io/pypi/v/agent-cli-Mrzhou300)]()
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000)]()
 [![License MIT](https://img.shields.io/badge/license-MIT-green)]()
 [![Tests](https://img.shields.io/badge/tests-668%20passing-brightgreen)]()
@@ -39,7 +39,7 @@
 
 ```bash
 # 方式一：从 PyPI 安装（推荐）
-pip install agent-harness-cli
+pip install agent-cli-Mrzhou300
 
 # 方式二：从源码安装
 git clone https://github.com/your-username/agent-cli.git
