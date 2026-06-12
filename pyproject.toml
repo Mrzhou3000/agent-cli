@@ -1,5 +1,5 @@
 [project]
-name = "agent-cli"
+name = "agent-harness-cli"
 version = "0.2.0"
 description = "轻量级个人助手 Agent CLI — 集三大开源项目设计思想之大成的融合实现"
 readme = "README.md"
@@ -37,6 +37,9 @@ Documentation = "https://github.com/Mrzhou3000/agent-cli#readme"
 
 [project.scripts]
 agent-cli = "agent_cli.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agent_cli"]
 
 [build-system]
 requires = ["hatchling"]
