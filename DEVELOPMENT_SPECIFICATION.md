@@ -1141,7 +1141,7 @@ class PermissionDecision:
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/your-username/agent-cli.git
+git clone https://github.com/Mrzhou3000/agent-cli.git
 cd agent-cli
 
 # 2. 安装依赖
