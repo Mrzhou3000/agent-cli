@@ -39,7 +39,7 @@ Documentation = "https://github.com/Mrzhou3000/agent-cli#readme"
 agent-cli = "agent_cli.main:app"
 
 [tool.hatch.build.targets.wheel]
-packages = ["agent_cli"]
+packages = ["src/agent_cli"]
 
 [build-system]
 requires = ["hatchling"]
